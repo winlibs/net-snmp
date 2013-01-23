@@ -1,0 +1,70 @@
+diff -ur net-snmp-orig/include/net-snmp/library/snmp_logging.h net-snmp-5.7.2/include/net-snmp/library/snmp_logging.h
+--- net-snmp-orig/include/net-snmp/library/snmp_logging.h	Wed Jan 23 10:30:25 2013
++++ net-snmp-5.7.2/include/net-snmp/library/snmp_logging.h	Wed Jan 23 11:17:14 2013
+@@ -5,7 +5,11 @@
+ #include <net-snmp/output_api.h>
+ 
+ #if HAVE_SYSLOG_H
+-#include <syslog.h>
++#ifdef PHP_WIN32
++# include <win32\syslog.h>
++#else
++# include <syslog.h>
++#endif
+ #endif
+ #include <stdio.h>
+ #include <stdarg.h>
+diff -ur net-snmp-orig/include/net-snmp/library/system.h net-snmp-5.7.2/include/net-snmp/library/system.h
+--- net-snmp-orig/include/net-snmp/library/system.h	Wed Jan 23 10:30:25 2013
++++ net-snmp-5.7.2/include/net-snmp/library/system.h	Wed Jan 23 11:01:32 2013
+@@ -59,7 +59,7 @@
+      */
+ #ifndef MSVC_PERL
+ 
+-#ifndef HAVE_READDIR
++#if !defined(HAVE_READDIR) && !defined(PHP_WIN32)
+     /*
+      * structure of a directory entry 
+      */
+diff -ur net-snmp-orig/snmplib/read_config.c net-snmp-5.7.2/snmplib/read_config.c
+--- net-snmp-orig/snmplib/read_config.c	Wed Jan 23 10:30:34 2013
++++ net-snmp-5.7.2/snmplib/read_config.c	Wed Jan 23 08:45:19 2013
+@@ -536,13 +536,13 @@
+     lptr = read_config_find_handler(lptr, token);
+     if (lptr != NULL) {
+         if (when == EITHER_CONFIG || lptr->config_time == when) {
++            char tmpbuf[1];
+             DEBUGMSGTL(("read_config:parser",
+                         "Found a parser.  Calling it: %s / %s\n", token,
+                         cptr));
+             /*
+              * Make sure cptr is non-null
+              */
+-            char tmpbuf[1];
+             if (!cptr) {
+                 tmpbuf[0] = '\0';
+                 cptr = tmpbuf;
+diff -ur net-snmp-orig/win32/net-snmp/net-snmp-config.h.in net-snmp-5.7.2/win32/net-snmp/net-snmp-config.h.in
+--- net-snmp-orig/win32/net-snmp/net-snmp-config.h.in	Wed Jan 23 10:30:38 2013
++++ net-snmp-5.7.2/win32/net-snmp/net-snmp-config.h.in	Wed Jan 23 10:26:24 2013
+@@ -1673,19 +1673,7 @@
+ /* MSVC OpenSSL linker settings. */
+ #if defined(_MSC_VER)
+ #  if defined(NETSNMP_USE_OPENSSL)
+-#    ifdef _DLL
+-#      ifdef _DEBUG
+-#        pragma comment(lib, "libeay32MDd.lib")
+-#      else
+-#        pragma comment(lib, "libeay32MD.lib")
+-#      endif
+-#    else
+-#      ifdef _DEBUG
+-#        pragma comment(lib, "libeay32MTd.lib")
+-#      else
+-#        pragma comment(lib, "libeay32MT.lib")
+-#      endif
+-#    endif
++#    pragma comment(lib, "libeay32.lib")
+ #    pragma comment(lib, "gdi32.lib")
+ #    pragma comment(lib, "user32.lib")
+ #  endif
