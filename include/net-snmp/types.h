@@ -89,7 +89,7 @@ typedef u_int socklen_t;
 typedef u_long in_addr_t;
 #endif
 
-#ifndef HAVE_SSIZE_T
+#if !defined(HAVE_SSIZE_T) && !defined(_WIN64)
 #if defined(__INT_MAX__) && __INT_MAX__ == 2147483647
 typedef int ssize_t;
 #else
