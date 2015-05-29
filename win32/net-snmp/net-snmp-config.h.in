@@ -1736,7 +1736,9 @@ enum {
 #endif
 
 /* Define to 1 if you have the `strtoull' function. */
-/* #undef HAVE_STRTOULL */
+#if defined(_MSC_VER) && _MSC_VER >= 1900
+# define HAVE_STRTOULL 1
+#endif
 
 /*
  * Module configuration and control starts here.
