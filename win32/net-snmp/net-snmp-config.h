@@ -25,7 +25,7 @@
  * See the PACKAGE_VERSION variable in Unix /configure script
 */
 #ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "unknown"
+#define PACKAGE_VERSION "5.7.3"
 #endif
 
 /* Define HAVE_WIN32_PLATFORM_SDK if you have:
@@ -37,7 +37,7 @@
 
 /* Define NETSNMP_ENABLE_IPV6 to enable IPv6.  IPv6 is only available on
  * Windows XP and higher.  */
-/* #undef NETSNMP_ENABLE_IPV6 */
+#define NETSNMP_ENABLE_IPV6 1
 
 /* Only use Windows API functions available on Windows 2000 SP4 or later.  
  * We need at least SP1 for some IPv6 defines in ws2ipdef.h
@@ -1352,11 +1352,17 @@
 
 #ifdef __MINGW32__
 /* got ssize_t? */
-#define HAVE_SSIZE_T
+# define HAVE_SSIZE_T
+#elif defined(_MSC_VER)
+# ifdef _M_X64
+typedef __int64 ssize_t;
+# else
+typedef __int32 ssize_t;
+# endif
 #endif
 
 /* If you have openssl 0.9.7 or above, you likely have AES support. */
-/* #undef NETSNMP_USE_OPENSSL */
+#define NETSNMP_USE_OPENSSL 1
 
 #ifdef NETSNMP_USE_OPENSSL
 
@@ -1685,21 +1691,11 @@ enum {
 /* MSVC OpenSSL linker settings. */
 #if defined(_MSC_VER)
 #  if defined(NETSNMP_USE_OPENSSL)
-#    ifdef _DLL
-#      ifdef _DEBUG
-#        pragma comment(lib, "libeay32MDd.lib")
-#      else
-#        pragma comment(lib, "libeay32MD.lib")
-#      endif
-#    else
-#      ifdef _DEBUG
-#        pragma comment(lib, "libeay32MTd.lib")
-#      else
-#        pragma comment(lib, "libeay32MT.lib")
-#      endif
-#    endif
+#    pragma comment(lib, "libssl.lib")
+#    pragma comment(lib, "libcrypto.lib")
 #    pragma comment(lib, "gdi32.lib")
 #    pragma comment(lib, "user32.lib")
+#    pragma comment(lib, "advapi32.lib")
 #  endif
 #endif
 
@@ -1761,7 +1757,7 @@ enum {
 
 /* Define to 1 if you have the `strtoull' function. */
 #if _MSC_VER >= 1800
-#define HAVE_STRTOULL 1
+#define HAVE_STRTOULL
 #else
 /* #undef HAVE_STRTOULL */
 #endif

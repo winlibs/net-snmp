@@ -1691,21 +1691,11 @@ enum {
 /* MSVC OpenSSL linker settings. */
 #if defined(_MSC_VER)
 #  if defined(NETSNMP_USE_OPENSSL)
-#    ifdef _DLL
-#      ifdef _DEBUG
-#        pragma comment(lib, "libeay32MDd.lib")
-#      else
-#        pragma comment(lib, "libeay32MD.lib")
-#      endif
-#    else
-#      ifdef _DEBUG
-#        pragma comment(lib, "libeay32MTd.lib")
-#      else
-#        pragma comment(lib, "libeay32MT.lib")
-#      endif
-#    endif
+#    pragma comment(lib, "libssl.lib")
+#    pragma comment(lib, "libcrypto.lib")
 #    pragma comment(lib, "gdi32.lib")
 #    pragma comment(lib, "user32.lib")
+#    pragma comment(lib, "advapi32.lib")
 #  endif
 #endif
 
