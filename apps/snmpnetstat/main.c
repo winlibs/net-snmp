@@ -61,13 +61,13 @@ static char *rcsid = "$OpenBSD: main.c,v 1.52 2005/02/10 14:25:08 itojun Exp $";
 #include "winstub.h"
 #endif
 
-int	Aflag;		/* show addresses of protocol control block */
 int	aflag;		/* show all sockets (including servers) */
 int	bflag;		/* show bytes instead of packets */
 int	dflag;		/* show i/f dropped packets */
 int	gflag;		/* show group (multicast) routing or stats */
 int	iflag;		/* show interfaces */
 int	lflag;		/* show routing table with use and ref */
+int	Lflag;		/* Legacy mibs */
 int	mflag;		/* show memory stats */
 int	nflag;		/* show addresses numerically */
 int	oflag;		/* Open/Net-BSD style octet output */
@@ -86,7 +86,7 @@ int	af;		/* address family */
 int     max_getbulk = 32;  /* specifies the max-repeaters value to use with GETBULK requests */
 
 char    *progname = NULL;
-
+const char *pname;
     /*
      * struct nlist nl[] - Omitted
      */
@@ -99,7 +99,9 @@ struct protox {
 	stringfun	*pr_cblocks;	/* control blocks printing routine */
 	stringfun	*pr_stats;	/* statistics printing routine */
 	const char	*pr_name;	/* well-known name */
-} protox[] = {
+};
+
+struct protox protox[] = {
 	{ 1,	tcpprotopr,	tcp_stats,	"tcp" },	
 	{ 1,	udpprotopr,	udp_stats,	"udp" },	
 
@@ -116,6 +118,16 @@ struct protox ip6protox[] = {
 	{ 1,	(stringfun*)0,	ip6_stats,	"ip6" },/* ip6protopr Omitted */
 	{ 1,	(stringfun*)0,	icmp6_stats,	"icmp6" },
 	/* pim6/rip6 - Omitted */
+	{ 0,	(stringfun*)0,	(stringfun*)0,	NULL }
+};
+
+struct protox ipxprotox[] = {
+	{ 1,	tcpxprotopr,	tcp_stats,	"tcp" },	
+	{ 1,	udpxprotopr,	udp_stats,	"udp" },	
+	{ 1,	(stringfun*)0,	ipx_stats,	"ip" },/* ip6protopr Omitted */
+	{ 1,	(stringfun*)0,	ipx_stats,	"ip6" },/* ip6protopr Omitted */
+	{ 1,	(stringfun*)0,	icmpx_stats,	"icmp" },
+	{ 1,	(stringfun*)0,	icmpx_stats,	"icmp6" },
 	{ 0,	(stringfun*)0,	(stringfun*)0,	NULL }
 };
 
@@ -140,11 +152,6 @@ optProc( int argc, char *const *argv, int opt )
     case 'C':
         while (*optarg) {
             switch (*optarg++) {
-	    /*	case 'A':		*BSD:  display PCB addresses
-					Linux: protocol family
-			Aflag = 1;
-			break;
-	     */
 		case 'a':
 			aflag = 1;
 			break;
@@ -194,6 +201,9 @@ optProc( int argc, char *const *argv, int opt )
 		case 'i':
 			iflag = 1;
 			break;
+		case 'L':
+			Lflag = 1;
+			break;
 	    /*  case 'L':		FreeBSD: Display listen queue lengths
 					NetBSD:  Suppress link-level routes */
 	    /*	case 'l':		OpenBSD: Wider IPv6 display
@@ -230,6 +240,7 @@ optProc( int argc, char *const *argv, int opt )
 				exit(1);
 			}
 			pflag = 1;
+			pname = tp->pr_name;
 			return;
 	    /*	case 'q':		NetBSD:  IRQ information
 					OpenBSD: Suppress inactive I/Fs
@@ -358,6 +369,7 @@ main(int argc, char *argv[])
 	 *     Kernel namelis handling
 	 */
 
+#if 0
 	if (mflag) {
             /*
 		mbpr(nl[N_MBSTAT].n_value, nl[N_MBPOOL].n_value,
@@ -369,6 +381,7 @@ main(int argc, char *argv[])
 		printproto(tp, tp->pr_name);
 		exit(0);
 	}
+#endif
 	/*
 	 * Keep file descriptors open to avoid overhead
 	 * of open/close on each call to get* routines.
@@ -385,7 +398,10 @@ main(int argc, char *argv[])
 			rt_stats();
 		else
               */
-			routepr();
+		if (Lflag || routexpr(af) == 0) {
+		    if (route4pr(af) == 0 && af == AF_INET) routepr();
+		    route6pr(af);
+		}
 		exit(0);
 	}
      /*
@@ -416,23 +432,33 @@ main(int argc, char *argv[])
 		exit(0);
 	}
      */
-	if (af == AF_INET || af == AF_UNSPEC) {
+	setservent(1);
+        if (Lflag) {
+            switch (af) {
+            case AF_UNSPEC:
 		setprotoent(1);
-		setservent(1);
 		/* ugh, this is O(MN) ... why do we do this? */
 		while ((p = getprotoent())) {
 			for (tp = protox; tp->pr_name; tp++)
 				if (strcmp(tp->pr_name, p->p_name) == 0)
-					break;
-			if (tp->pr_name == NULL || tp->pr_wanted == 0)
-				continue;
-			printproto(tp, p->p_name);
+					if (tp->pr_name && tp->pr_wanted)
+					    printproto(tp, p->p_name);
 		}
 		endprotoent();
+                break;
+            case AF_INET:
+                    for (tp = protox; tp->pr_name; tp++)
+                            printproto(tp, tp->pr_name);
+            case AF_INET6:
+                    for (tp = ip6protox; tp->pr_name; tp++)
+                            printproto(tp, tp->pr_name);
+            }
 	}
-	if (af == AF_INET6 || af == AF_UNSPEC)
-		for (tp = ip6protox; tp->pr_name; tp++)
-			printproto(tp, tp->pr_name);
+        else {
+	    for (tp = ipxprotox; tp->pr_name; tp++)
+		if (!pname || strcmp(pname,tp->pr_name) == 0)
+		    printproto(tp, pname);
+	}
     /*
 	if (af == AF_IPX || af == AF_UNSPEC)
 		for (tp = ipxprotox; tp->pr_name; tp++)
@@ -526,14 +552,12 @@ static void
 usage(void)
 {
 	(void)fprintf(stderr,
-"usage: %s [snmp_opts] [-Can] [-Cf address_family]\n", progname);
+"usage: %s [snmp_opts] [-Canv] [-Cf address_family]\n", progname);
 	(void)fprintf(stderr,
-"       %s [snmp_opts] [-CbdgimnrSs] [-Cf address_family]\n", progname);
+"       %s [snmp_opts] [-Cibodnv] [-CI interface] [-Cw wait]\n", progname);
 	(void)fprintf(stderr,
-"       %s [snmp_opts] [-Cbdn] [-CI interface] [-Cw wait]\n", progname);
+"       %s [snmp_opts] [-Cs[s]] [-Cp protocol]\n", progname);
 	(void)fprintf(stderr,
-"       %s [snmp_opts] [-Cs] [-Cp protocol]\n", progname);
-	(void)fprintf(stderr,
-"       %s [snmp_opts] [-Ca] [-Cf address_family] [-Ci | -CI interface]\n", progname);
+"       %s [snmp_opts] [-Crnv] [-Cf address_family]\n", progname);
 	exit(1);
 }

@@ -112,6 +112,8 @@ mibcache        Mibcache[MIBCACHE_SIZE+1] = {
     {MIB_IP6, 20 * sizeof(mib2_ipv6IfStatsEntry_t), (void *)-1, 0, 30, 0, 0},
 #endif
     {MIB_IP6_ADDR, 20 * sizeof(mib2_ipv6AddrEntry_t), (void *)-1, 0, 30, 0, 0},
+    {MIB_IP6_ROUTE, 200 * sizeof(mib2_ipv6AddrEntry_t), (void *)-1, 0, 30, 0, 0},
+    {MIB_ICMP6, 20 * sizeof(mib2_ipv6IfIcmpEntry_t), (void *)-1, 0, 30, 0, 0},
     {MIB_TCP6_CONN, 1000 * sizeof(mib2_tcp6ConnEntry_t), (void *) -1, 0, 30,
      0, 0},
     {MIB_UDP6_ENDPOINT, 1000 * sizeof(mib2_udp6Entry_t), (void *) -1, 0, 30,
@@ -152,6 +154,8 @@ mibmap          Mibmap[MIBCACHE_SIZE+1] = {
 #endif
     {MIB2_IP6, 0},
     {MIB2_IP6, MIB2_IP6_ADDR},
+    {MIB2_IP6, MIB2_IP6_ROUTE},
+    {MIB2_ICMP6, 0},
     {MIB2_TCP6, MIB2_TCP6_CONN},
     {MIB2_UDP6, MIB2_UDP6_ENTRY},
 #endif
@@ -1002,27 +1006,31 @@ getmib(int groupname, int subgroupname, void **statbuf, size_t *size,
 	    rc = getmsg(sd, NULL, &strbuf, &flags);
 	    switch (rc) {
 	    case -1:
-		rc = -ENOSR;
+		ret = -ENOSR;
+		snmp_perror("getmsg");
 		goto Return;
 
 	    default:
-		rc = -ENODATA;
+		snmp_log(LOG_ERR, "kernel_sunos5/getmib: getmsg returned %d\n", rc);
+		ret = -ENODATA;
 		goto Return;
 
 	    case MOREDATA:
-		oldsize = ( ((void *)strbuf.buf) - *statbuf) + strbuf.len;
-		strbuf.buf = (void *)realloc(*statbuf,oldsize+4096);
+		DEBUGMSGTL(("kernel_sunos5", "...... getmib increased buffer size\n"));
+		oldsize = ( strbuf.buf - (char *)*statbuf) + strbuf.len;
+		strbuf.buf = (char *)realloc(*statbuf, oldsize+4096);
 		if(strbuf.buf != NULL) {
 		    *statbuf = strbuf.buf;
 		    *size = oldsize + 4096;
-		    strbuf.buf = *statbuf + oldsize;
+		    strbuf.buf = (char *)*statbuf + oldsize;
 		    strbuf.maxlen = 4096;
+		    result = NOT_FOUND;
 		    break;
 		}
-		strbuf.buf = *statbuf + (oldsize - strbuf.len);
+		strbuf.buf = (char *)*statbuf + (oldsize - strbuf.len);
 	    case 0:
 		/* fix buffer to real size & position */
-		strbuf.len += ((void *)strbuf.buf) - *statbuf;
+		strbuf.len += strbuf.buf - (char*)*statbuf;
 		strbuf.buf = *statbuf;
 		strbuf.maxlen = *size;
 
@@ -1648,6 +1656,8 @@ set_if_info(mib2_ifEntry_t *ifp, unsigned index, char *name, uint64_t flags,
         /*
          * this is good 
          */
+	havespeed = B_TRUE;
+    } else if (getKstatInt("link", name, "ifspeed", &ifp->ifSpeed) == 0) {
 	havespeed = B_TRUE;
     }
 

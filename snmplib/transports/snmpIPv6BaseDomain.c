@@ -140,7 +140,7 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
         return 0;
     }
 
-    DEBUGMSGTL(("netsnmp_sockaddr_in6",
+    DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
 		"addr %p, peername \"%s\", default_target \"%s\"\n",
                 addr, inpeername ? inpeername : "[NIL]",
 		default_target ? default_target : "[NIL]"));
@@ -151,12 +151,12 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
     addr->sin6_port = htons((u_short)SNMP_PORT);
 
     {
-      int port = netsnmp_ds_get_int(NETSNMP_DS_LIBRARY_ID,
-				    NETSNMP_DS_LIB_DEFAULT_PORT);
-      if (port != 0)
-        addr->sin6_port = htons((u_short)port);
-      else if (default_target != NULL)
-	netsnmp_sockaddr_in6_2(addr, default_target, NULL);
+        int port = netsnmp_ds_get_int(NETSNMP_DS_LIBRARY_ID,
+                                      NETSNMP_DS_LIB_DEFAULT_PORT);
+        if (port != 0)
+            addr->sin6_port = htons((u_short)port);
+        else if (default_target != NULL)
+            netsnmp_sockaddr_in6_2(addr, default_target, NULL);
     }
 
     if (inpeername != NULL) {
@@ -170,13 +170,15 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
             return 0;
         }
 
-        for (cp = peername; *cp && isdigit((unsigned char) *cp); cp++);
-        portno = atoi(peername);
+        cp = peername;
+        if (*cp == ':') cp++;
+        portno = atoi(cp);
+        while (*cp && isdigit((unsigned char) *cp)) cp++;
         if (!*cp &&  portno != 0) {
             /*
              * Okay, it looks like JUST a port number.  
              */
-            DEBUGMSGTL(("netsnmp_sockaddr_in6", "totally numeric: %d\n",
+            DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "totally numeric: %d\n",
                         portno));
             addr->sin6_port = htons((u_short)portno);
             goto resolved;
@@ -209,13 +211,13 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
                     if (portno != 0 &&
                         inet_pton(AF_INET6, peername + 1,
                                   (void *) &(addr->sin6_addr))) {
-                        DEBUGMSGTL(("netsnmp_sockaddr_in6",
+                        DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                                     "IPv6 address with port suffix :%d\n",
                                     portno));
-                        if (portno > 0 && portno < 0xffff) {
+                        if (portno > 0 && portno <= 0xffff) {
                             addr->sin6_port = htons((u_short)portno);
                         } else {
-                            DEBUGMSGTL(("netsnmp_sockaddr_in6", "invalid port number: %d", portno));
+                            DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "invalid port number: %d", portno));
                             return 0;
                         }
 
@@ -228,10 +230,12 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
                     if (inet_pton
                         (AF_INET6, peername + 1,
                          (void *) &(addr->sin6_addr))) {
-                        DEBUGMSGTL(("netsnmp_sockaddr_in6",
+                        DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                                     "IPv6 address with square brackets\n"));
-                        portno = netsnmp_ds_get_int(NETSNMP_DS_LIBRARY_ID, 
-				                    NETSNMP_DS_LIB_DEFAULT_PORT);
+                        portno = ntohs(addr->sin6_port);
+                        if (portno == 0)
+                            portno = netsnmp_ds_get_int(NETSNMP_DS_LIBRARY_ID, 
+                                                    NETSNMP_DS_LIB_DEFAULT_PORT);
                         if (portno <= 0)
                             portno = SNMP_PORT;
                         addr->sin6_port = htons((u_short)portno);
@@ -262,13 +266,13 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
             if (portno != 0 &&
                 inet_pton(AF_INET6, peername,
                           (void *) &(addr->sin6_addr))) {
-                DEBUGMSGTL(("netsnmp_sockaddr_in6",
+                DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                             "IPv6 address with port suffix :%d\n",
                             atoi(cp + 1)));
-                if (portno > 0 && portno < 0xffff) {
+                if (portno > 0 && portno <= 0xffff) {
                     addr->sin6_port = htons((u_short)portno);
                 } else {
-                    DEBUGMSGTL(("netsnmp_sockaddr_in6", "invalid port number: %d", portno));
+                    DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "invalid port number: %d", portno));
                     return 0;
                 }
 
@@ -287,7 +291,7 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
          * See if it is JUST an IPv6 address.  
          */
         if (inet_pton(AF_INET6, peername, (void *) &(addr->sin6_addr))) {
-            DEBUGMSGTL(("netsnmp_sockaddr_in6", "just IPv6 address\n"));
+            DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "just IPv6 address\n"));
             goto resolved;
         }
 
@@ -301,13 +305,13 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
             *cp = '\0';
             portno = atoi(cp + 1);
             if (portno != 0) {
-                DEBUGMSGTL(("netsnmp_sockaddr_in6",
+                DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                             "hostname(?) with port suffix :%d\n",
                             portno));
-                if (portno > 0 && portno < 0xffff) {
+                if (portno > 0 && portno <= 0xffff) {
                     addr->sin6_port = htons((u_short)portno);
                 } else {
-                    DEBUGMSGTL(("netsnmp_sockaddr_in6", "invalid port number: %d", portno));
+                    DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "invalid port number: %d", portno));
                     return 0;
                 }
 
@@ -317,7 +321,7 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
                  * the name resolver below.  
                  */
                 *cp = ':';
-                DEBUGMSGTL(("netsnmp_sockaddr_in6",
+                DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                             "hostname(?) with embedded ':'?\n"));
             }
             /*
@@ -326,7 +330,7 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
         }
 
         if (peername[0] == '\0') {
-          DEBUGMSGTL(("netsnmp_sockaddr_in6", "empty hostname\n"));
+          DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "empty hostname\n"));
           free(peername);
           return 0;
         }
@@ -342,51 +346,44 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
             err = netsnmp_getaddrinfo(peername, NULL, &hint, &addrs);
         }
         if (err != 0) {
-#if HAVE_GAI_STRERROR
-            snmp_log(LOG_ERR, "getaddrinfo(\"%s\", NULL, ...): %s\n", peername,
-                     gai_strerror(err));
-#else
-            snmp_log(LOG_ERR, "getaddrinfo(\"%s\", NULL, ...): (error %d)\n",
-                     peername, err);
-#endif
             free(peername);
             return 0;
         }
         if (addrs != NULL) {
-        DEBUGMSGTL(("netsnmp_sockaddr_in6", "hostname (resolved okay)\n"));
-        memcpy(&addr->sin6_addr,
-               &((struct sockaddr_in6 *) addrs->ai_addr)->sin6_addr,
-               sizeof(struct in6_addr));
-		freeaddrinfo(addrs);
+            DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "hostname (resolved okay)\n"));
+            memcpy(&addr->sin6_addr,
+                   &((struct sockaddr_in6 *) addrs->ai_addr)->sin6_addr,
+                   sizeof(struct in6_addr));
+            freeaddrinfo(addrs);
         }
-		else {
-        DEBUGMSGTL(("netsnmp_sockaddr_in6", "Failed to resolve IPv6 hostname\n"));
-		}
+        else {
+            DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "Failed to resolve IPv6 hostname\n"));
+        }
 #elif HAVE_GETIPNODEBYNAME
         hp = getipnodebyname(peername, AF_INET6, 0, &err);
         if (hp == NULL) {
-            DEBUGMSGTL(("netsnmp_sockaddr_in6",
+            DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                         "hostname (couldn't resolve = %d)\n", err));
             free(peername);
             return 0;
         }
-        DEBUGMSGTL(("netsnmp_sockaddr_in6", "hostname (resolved okay)\n"));
+        DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "hostname (resolved okay)\n"));
         memcpy(&(addr->sin6_addr), hp->h_addr, hp->h_length);
 #elif HAVE_GETHOSTBYNAME
         hp = netsnmp_gethostbyname(peername);
         if (hp == NULL) {
-            DEBUGMSGTL(("netsnmp_sockaddr_in6",
+            DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                         "hostname (couldn't resolve)\n"));
             free(peername);
             return 0;
         } else {
             if (hp->h_addrtype != AF_INET6) {
-                DEBUGMSGTL(("netsnmp_sockaddr_in6",
+                DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                             "hostname (not AF_INET6!)\n"));
                 free(peername);
                 return 0;
             } else {
-                DEBUGMSGTL(("netsnmp_sockaddr_in6",
+                DEBUGMSGTL(("netsnmp_sockaddr_in6_2",
                             "hostname (resolved okay)\n"));
                 memcpy(&(addr->sin6_addr), hp->h_addr, hp->h_length);
             }
@@ -401,12 +398,12 @@ netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
         return 0;
 #endif                          /*HAVE_GETHOSTBYNAME */
     } else {
-        DEBUGMSGTL(("netsnmp_sockaddr_in6", "NULL peername"));
+        DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "NULL peername"));
         return 0;
     }
 
   resolved:
-    DEBUGMSGTL(("netsnmp_sockaddr_in6", "return { AF_INET6, [%s]:%hu }\n",
+    DEBUGMSGTL(("netsnmp_sockaddr_in6_2", "return { AF_INET6, [%s]:%hu }\n",
                 inet_ntop(AF_INET6, &addr->sin6_addr, debug_addr,
                           sizeof(debug_addr)), ntohs(addr->sin6_port)));
     free(peername);

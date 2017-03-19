@@ -50,10 +50,10 @@
 #undef PACKAGE_STRING
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
-#include <mysql/my_global.h>
-#include <mysql/my_sys.h>
-#include <mysql/mysql.h>
-#include <mysql/errmsg.h>
+#include <my_global.h>
+#include <my_sys.h>
+#include <mysql.h>
+#include <errmsg.h>
 
 netsnmp_feature_require(container_fifo)
 
@@ -458,6 +458,8 @@ netsnmp_mysql_init(void)
             _sql.port_num = atoi(&not_argv[i][7]);
         else if (strncmp(not_argv[i],"--socket=",9) == 0)
             _sql.socket_name = &not_argv[i][9];
+        else if (strncmp(not_argv[i],"--database=",11) == 0)
+            _sql.db_name = &not_argv[i][11];
         else
             snmp_log(LOG_WARNING, "unknown argument[%d] %s\n", i, not_argv[i]);
     }
@@ -730,7 +732,7 @@ _sql_save_trap_info(sql_buf *sqlb, netsnmp_pdu  *pdu,
 
     /** host name */
     buf_host_len_t = 0;
-    tmp_size = sizeof(sqlb->host);
+    tmp_size = 0;
     realloc_format_trap((u_char**)&sqlb->host, &tmp_size,
                         &buf_host_len_t, 1, "%B", pdu, transport);
     sqlb->host_len = buf_host_len_t;
@@ -880,7 +882,7 @@ _sql_save_varbind_info(sql_buf *sqlb, netsnmp_pdu  *pdu)
                                &buf_val_len_t, 1, var, 0, 0, 0);
         sqlvb->val_len = buf_val_len_t;
 #else
-        memdup(&sqlvb->val, var->val.string, var->val_len);
+        sqlvb->val = netsnmp_memdup(var->val.string, var->val_len);
         sqlvb->val_len = var->val_len;
 #endif
 

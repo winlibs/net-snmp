@@ -126,7 +126,7 @@ tcpprotoprint_line(const char *name, netsnmp_variable_list *vp, int *first)
 		if (aflag)
 			printf(" (including servers)");
 		putchar('\n');
-		width = Aflag ? 18 : 22;
+		width = 27;
 		printf("%-5.5s %*.*s %*.*s %s\n",
 			   "Proto", -width, width, "Local Address",
 						-width, width, "Remote Address", "(state)");
@@ -135,27 +135,27 @@ tcpprotoprint_line(const char *name, netsnmp_variable_list *vp, int *first)
 	
 	/* Extract the local/remote information from the index values */
 	cp = tmpAddr.data;
-	cp[0] = vp->name[ 10 ] & 0xff;
-	cp[1] = vp->name[ 11 ] & 0xff;
-	cp[2] = vp->name[ 12 ] & 0xff;
-	cp[3] = vp->name[ 13 ] & 0xff;
+	cp[0] = (uint8_t) vp->name[10];
+	cp[1] = (uint8_t) vp->name[11];
+	cp[2] = (uint8_t) vp->name[12];
+	cp[3] = (uint8_t) vp->name[13];
 	localAddr.s_addr = tmpAddr.addr.s_addr;
-	localPort        = ntohs(vp->name[ 14 ]);
+	localPort        = vp->name[ 14 ];
 	cp = tmpAddr.data;
-	cp[0] = vp->name[ 15 ] & 0xff;
-	cp[1] = vp->name[ 16 ] & 0xff;
-	cp[2] = vp->name[ 17 ] & 0xff;
-	cp[3] = vp->name[ 18 ] & 0xff;
+	cp[0] = (uint8_t) vp->name[15];
+	cp[1] = (uint8_t) vp->name[16];
+	cp[2] = (uint8_t) vp->name[17];
+	cp[3] = (uint8_t) vp->name[18];
 	remoteAddr.s_addr = tmpAddr.addr.s_addr;
-	remotePort        = ntohs(vp->name[ 19 ]);
+	remotePort        = vp->name[ 19 ];
 
 	printf("%-5.5s", name);
 	inetprint(&localAddr,  localPort,  name, 1);
 	inetprint(&remoteAddr, remotePort, name, 0);
 	if (state < 1 || state > TCP_NSTATES) {
-		printf("%d\n", state );
+		printf(" %d\n", state );
 	} else {
-		printf("%s\n", tcpstates[state]);
+		printf(" %s\n", tcpstates[state]);
 	}
 }
 
@@ -176,6 +176,8 @@ tcpprotopr_get(const char *name, oid *root, size_t root_len)
         return;
     if (netsnmp_query_walk( var, ss ) != SNMP_ERR_NOERROR)
         return;
+    if ((var->type & 0xF0) == 0x80)	/* Exception */
+	return;
 
     for (vp = var; vp ; vp=vp->next_variable) {
         tcpprotoprint_line(name, vp, &first);
@@ -212,9 +214,11 @@ udpprotopr(const char *name)
         return;
     if (netsnmp_query_walk( var, ss ) != SNMP_ERR_NOERROR)
         return;
+    if ((var->type & 0xF0) == 0x80)	/* Exception */
+	return;
 
     printf("Active Internet (%s) Connections\n", name);
-    printf("%-5.5s %-28.28s\n", "Proto", "Local Address");
+    printf("%-5.5s %-27.27s\n", "Proto", "Local Address");
     for (vp = var; vp ; vp=vp->next_variable) {
         printf("%-5.5s", name);
         /*
@@ -223,12 +227,12 @@ udpprotopr(const char *name)
          *   we walked udpLocalAddress rather than udpLocalPort)
          */
         cp = tmpAddr.data;
-        cp[0] = vp->name[ 10 ] & 0xff;
-        cp[1] = vp->name[ 11 ] & 0xff;
-        cp[2] = vp->name[ 12 ] & 0xff;
-        cp[3] = vp->name[ 13 ] & 0xff;
+        cp[0] = (uint8_t) vp->name[10];
+        cp[1] = (uint8_t) vp->name[11];
+        cp[2] = (uint8_t) vp->name[12];
+        cp[3] = (uint8_t) vp->name[13];
         localAddr.s_addr = tmpAddr.addr.s_addr;
-        localPort        = ntohs( (u_short)(vp->name[ 14 ]));
+        localPort        = vp->name[ 14 ];
         inetprint(&localAddr, localPort, name, 1);
         putchar('\n');
     }
@@ -281,11 +285,12 @@ tcpprotopr_bulkget(const char *name, oid *root, size_t root_len)
                         continue;
                     }
 
-					tcpprotoprint_line(name, vp, &first);
-
                     if ((vp->type != SNMP_ENDOFMIBVIEW) &&
                         (vp->type != SNMP_NOSUCHOBJECT) &&
                         (vp->type != SNMP_NOSUCHINSTANCE)) {
+
+			tcpprotoprint_line(name, vp, &first);
+
                         /*
                          * Check if last variable, and if so, save for next request.
                          */
@@ -324,19 +329,19 @@ tcpprotopr(const char *name)
 {
     oid    tcpConnState_oid[] = { 1,3,6,1,2,1,6,13,1,1 };
     size_t tcpConnState_len   = OID_LENGTH( tcpConnState_oid );
-	int    use_getbulk = 1;
+    int    use_getbulk = 1;
 
 #ifndef NETSNMP_DISABLE_SNMPV1
     if (ss->version == SNMP_VERSION_1) {
         use_getbulk = 0;
-	}
+    }
 #endif
 
-	if (use_getbulk) {
-		tcpprotopr_bulkget(name, tcpConnState_oid, tcpConnState_len);
-	} else {
-		tcpprotopr_get(name, tcpConnState_oid, tcpConnState_len);
-	}
+    if (use_getbulk) {
+	    tcpprotopr_bulkget(name, tcpConnState_oid, tcpConnState_len);
+    } else {
+	    tcpprotopr_get(name, tcpConnState_oid, tcpConnState_len);
+    }
 }
 
 
@@ -391,7 +396,6 @@ _dump_stats( const char *name, oid *oid_buf, size_t buf_len,
          *   then only display non-zero stats.
          */
         if ( *vp->val.integer > 0 || sflag == 1 ) {
-            putchar('\t');
             printf(sp->description, *vp->val.integer,
                              plural(*vp->val.integer));
             putchar('\n');
@@ -410,24 +414,24 @@ ip_stats(const char *name)
     oid               ipstats_oid[] = { 1, 3, 6, 1, 2, 1, 4, 0, 0 };
     size_t            ipstats_len   = OID_LENGTH( ipstats_oid );
     struct stat_table ipstats_tbl[] = {
-        {3, "%d total datagram%s received"},
-        {4, "%d datagram%s with header errors"},
-        {5, "%d datagram%s with an invalid destination address"},
-        {6, "%d datagram%s forwarded"},
-        {7, "%d datagram%s with unknown protocol"},
-        {8, "%d datagram%s discarded"},
-        {9, "%d datagram%s delivered"},
-        {10, "%d output datagram request%s"},
-        {11, "%d output datagram%s discarded"},
-        {12, "%d datagram%s with no route"},
-        {14, "%d fragment%s received"},
-        {15, "%d datagram%s reassembled"},
-        {16, "%d reassembly failure%s"},
-        {17, "%d datagram%s fragmented"},
-        {18, "%d fragmentation failure%s"},
-        {19, "%d fragment%s created"},
-        {23, "%d route%s discarded"},
-        {0, ""}
+        { 3, "%14d total datagram%s received"},
+        { 4, "%14d datagram%s with header errors"},
+        { 5, "%14d datagram%s with an invalid destination address"},
+        { 6, "%14d datagram%s forwarded"},
+        { 7, "%14d datagram%s with unknown protocol"},
+        { 8, "%14d datagram%s discarded"},
+        { 9, "%14d datagram%s delivered"},
+        {10, "%14d output datagram request%s"},
+        {11, "%14d output datagram%s discarded"},
+        {12, "%14d datagram%s with no route"},
+        {14, "%14d fragment%s received"},
+        {15, "%14d datagram%s reassembled"},
+        {16, "%14d reassembly failure%s"},
+        {17, "%14d datagram%s fragmented"},
+        {18, "%14d fragmentation failure%s"},
+        {19, "%14d fragment%s created"},
+        {23, "%14d route%s discarded"},
+        { 0, ""}
     };
 
     _dump_stats( name, ipstats_oid, ipstats_len, ipstats_tbl );
@@ -443,38 +447,38 @@ icmp_stats(const char *name)
     oid               icmpstats_oid[] = { 1, 3, 6, 1, 2, 1, 5, 0, 0 };
     size_t            icmpstats_len   = OID_LENGTH( icmpstats_oid );
     struct stat_table icmpstats_tbl[] = {
-        {1, "%d total message%s received"},
-        {2, "%d message%s dropped due to errors"},
-        {14, "%d ouput message request%s"},
-        {15, "%d output message%s discarded"},
-        {0, ""}
+        { 1, "%14d total message%s received"},
+        { 2, "%14d message%s dropped due to errors"},
+        {14, "%14d ouput message request%s"},
+        {15, "%14d output message%s discarded"},
+        { 0, ""}
     };
     struct stat_table icmp_inhistogram[] = {
-        {3, "Destination unreachable: %d"},
-        {4, "Time Exceeded: %d"},
-        {5, "Parameter Problem: %d"},
-        {6, "Source Quench: %d"},
-        {7, "Redirect: %d"},
-        {8, "Echo Request: %d"},
-        {9, "Echo Reply: %d"},
-        {10, "Timestamp Request: %d"},
-        {11, "Timestamp Reply: %d"},
-        {12, "Address Mask Request: %d"},
-        {13, "Address Mask Reply: %d"},
-        {0, ""}
+        { 3, "        Destination unreachable: %d"},
+        { 4, "        Time Exceeded: %d"},
+        { 5, "        Parameter Problem: %d"},
+        { 6, "        Source Quench: %d"},
+        { 7, "        Redirect: %d"},
+        { 8, "        Echo Request: %d"},
+        { 9, "        Echo Reply: %d"},
+        {10, "        Timestamp Request: %d"},
+        {11, "        Timestamp Reply: %d"},
+        {12, "        Address Mask Request: %d"},
+        {13, "        Address Mask Reply: %d"},
+        { 0, ""}
     };
     struct stat_table icmp_outhistogram[] = {
-        {16, "Destination unreachable: %d"},
-        {17, "Time Exceeded: %d"},
-        {18, "Parameter Problem: %d"},
-        {19, "Source Quench: %d"},
-        {20, "Redirect: %d"},
-        {21, "Echo Request: %d"},
-        {22, "Echo Reply: %d"},
-        {23, "Timestamp Request: %d"},
-        {24, "Timestamp Reply: %d"},
-        {25, "Address Mask Request: %d"},
-        {26, "Address Mask Reply: %d"},
+        {16, "        Destination unreachable: %d"},
+        {17, "        Time Exceeded: %d"},
+        {18, "        Parameter Problem: %d"},
+        {19, "        Source Quench: %d"},
+        {20, "        Redirect: %d"},
+        {21, "        Echo Request: %d"},
+        {22, "        Echo Reply: %d"},
+        {23, "        Timestamp Request: %d"},
+        {24, "        Timestamp Reply: %d"},
+        {25, "        Address Mask Request: %d"},
+        {26, "        Address Mask Reply: %d"},
         {0, ""}
     };
 
@@ -495,19 +499,19 @@ tcp_stats(const char *name)
     oid               tcpstats_oid[] = { 1, 3, 6, 1, 2, 1, 6, 0, 0 };
     size_t            tcpstats_len   = OID_LENGTH( tcpstats_oid );
     struct stat_table tcpstats_tbl[] = {
-        {5, "%d active open%s"},
-        {6, "%d passive open%s"},
-        {7, "%d failed attempt%s"},
-        {8, "%d reset%s of established connections"},
-        {9, "%d current established connection%s"},
-        {10, "%d segment%s received"},
-        {11, "%d segment%s sent"},
-        {12, "%d segment%s retransmitted"},
-        {14, "%d invalid segment%s received"},
-        {15, "%d reset%s sent"},
-        {0, ""}
+        { 5, "%14d active open%s"},
+        { 6, "%14d passive open%s"},
+        { 7, "%14d failed attempt%s"},
+        { 8, "%14d reset%s of established connections"},
+        { 9, "%14d currently established connection%s"},
+        {10, "%14d segment%s received"},
+        {11, "%14d segment%s sent"},
+        {12, "%14d segment%s retransmitted"},
+        {14, "%14d invalid segment%s received"},
+        {15, "%14d reset%s sent"},
+        { 0, ""}
     };
-    _dump_stats( name, tcpstats_oid, tcpstats_len, tcpstats_tbl );
+    _dump_stats( "tcp", tcpstats_oid, tcpstats_len, tcpstats_tbl );
 }
 
 
@@ -520,13 +524,13 @@ udp_stats(const char *name)
     oid               udpstats_oid[] = { 1, 3, 6, 1, 2, 1, 7, 0, 0 };
     size_t            udpstats_len   = OID_LENGTH( udpstats_oid );
     struct stat_table udpstats_tbl[] = {
-        {1, "%d total datagram%s received"},
-        {2, "%d datagram%s to invalid port"},
-        {3, "%d datagram%s dropped due to errors"},
-        {4, "%d output datagram request%s"},
+        {1, "%14d total datagram%s received"},
+        {2, "%14d datagram%s to invalid port"},
+        {3, "%14d datagram%s dropped due to errors"},
+        {4, "%14d output datagram request%s"},
         {0, ""}
     };
-    _dump_stats( name, udpstats_oid, udpstats_len, udpstats_tbl );
+    _dump_stats( "udp", udpstats_oid, udpstats_len, udpstats_tbl );
 }
 
 
@@ -560,22 +564,25 @@ inetprint(struct in_addr *in, int port, const char *proto, int local)
 {
 	struct servent *sp = NULL;
 	char line[80], *cp;
-	int width;
+	int width = 27;
 
-	snprintf(line, sizeof line, "%.*s.", (Aflag && !nflag) ? 12 : 16,
-	    inetname(in));
+	if (vflag)
+	    snprintf(line, sizeof line, "%s.", inetname(in));
+	else
+	    snprintf(line, sizeof line, "%.*s.", width-9, inetname(in));
 	cp = strchr(line, '\0');
 	if (!nflag && port)
-		sp = getservbyport((int)port, proto);
+		sp = getservbyport(htons((uint16_t) port), proto);
 	if (sp || port == 0)
-		snprintf(cp, line + sizeof line - cp, "%.8s",
+		snprintf(cp, line + sizeof line - cp, vflag ? "%s" : "%.8s",
 		    sp ? sp->s_name : "*");
      /*
       * Translation of RPC service names - Omitted
       */
 	else
-		snprintf(cp, line + sizeof line - cp, "%d", ntohs(port));
-	width = Aflag ? 18 : 22;
+		snprintf(cp, line + sizeof line - cp, "%d", port);
+	if (vflag && width < strlen(line))
+	    width = strlen(line);
 	printf(" %-*.*s", width, width, line);
 }
 
@@ -598,9 +605,10 @@ inetname(struct in_addr *inp)
 #endif
 
 	if (first && !nflag) {
+		char tmp[MAXHOSTNAMELEN];
 		first = 0;
-		if (gethostname(domain, sizeof(domain)) == 0 &&
-		    (cp = strchr(domain, '.')))
+		if (gethostname(tmp, sizeof(tmp)) == 0 &&
+		    (cp = strchr(tmp, '.')))
 			(void) strlcpy(domain, cp + 1, sizeof domain);
 		else
 			domain[0] = '\0';

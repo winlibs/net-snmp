@@ -60,7 +60,6 @@
 #include <net-snmp/agent/table.h>
 #include <net-snmp/agent/table_iterator.h>
 #include <net-snmp/agent/agent_registry.h>
-#include "mib_module_includes.h"
 
 #ifdef USING_AGENTX_SUBAGENT_MODULE
 #include "agentx/subagent.h"
@@ -528,7 +527,7 @@ netsnmp_subtree_deepcopy(netsnmp_subtree *a)
 /** @private
  *  Replaces next subtree pointer in given subtree.
  */
-NETSNMP_INLINE void
+NETSNMP_STATIC_INLINE void
 netsnmp_subtree_change_next(netsnmp_subtree *ptr, netsnmp_subtree *thenext)
 {
     ptr->next = thenext;
@@ -543,7 +542,7 @@ netsnmp_subtree_change_next(netsnmp_subtree *ptr, netsnmp_subtree *thenext)
 /** @private
  *  Replaces previous subtree pointer in given subtree.
  */
-NETSNMP_INLINE void
+NETSNMP_STATIC_INLINE void
 netsnmp_subtree_change_prev(netsnmp_subtree *ptr, netsnmp_subtree *theprev)
 {
     ptr->prev = theprev;
@@ -1416,7 +1415,7 @@ register_mib_detach(void)
  */
 int
 register_mib_context(const char *moduleName,
-                     struct variable *var,
+                     const struct variable *var,
                      size_t varsize,
                      size_t numvars,
                      const oid * mibloc,
@@ -1481,7 +1480,7 @@ register_mib_context(const char *moduleName,
  */
 int
 register_mib_range(const char *moduleName,
-                   struct variable *var,
+                   const struct variable *var,
                    size_t varsize,
                    size_t numvars,
                    const oid * mibloc,
@@ -1530,7 +1529,7 @@ register_mib_range(const char *moduleName,
  */
 int
 register_mib_priority(const char *moduleName,
-                      struct variable *var,
+                      const struct variable *var,
                       size_t varsize,
                       size_t numvars,
                       const oid * mibloc, size_t mibloclen, int priority)
@@ -1570,7 +1569,7 @@ register_mib_priority(const char *moduleName,
  */
 int
 register_mib(const char *moduleName,
-             struct variable *var,
+             const struct variable *var,
              size_t varsize,
              size_t numvars, const oid * mibloc, size_t mibloclen)
 {
@@ -2320,6 +2319,9 @@ dump_registry(void)
 /* End of MIB registration code */
 
 
+netsnmp_feature_child_of(register_signal, netsnmp_unused)
+#ifndef NETSNMP_FEATURE_REMOVE_REGISTER_SIGNAL
+
 /** @defgroup agent_signals POSIX signals support for agents.
  *     Registering and unregistering signal handlers.
  *   @ingroup agent_registry
@@ -2416,6 +2418,8 @@ unregister_signal(int sig)
 
 /**  @} */
 /* End of signals support code */
+
+#endif /* NETSNMP_FEATURE_REMOVE_REGISTER_SIGNAL */
 
 /**  @} */
 

@@ -918,9 +918,9 @@ free_tree(struct tree *Tree)
 
     unlink_tbucket(Tree);
     free_partial_tree(Tree, FALSE);
-    if (Tree->number_modules > 1)
-        free((char *) Tree->module_list);
-    free((char *) Tree);
+    if (Tree->module_list != &Tree->modid)
+        free(Tree->module_list);
+    free(Tree);
 }
 
 static void
@@ -1571,15 +1571,14 @@ do_subtree(struct tree *root, struct node **nodes)
                 /*
                  * Update list of modules 
                  */
-                int_p =
-                    (int *) malloc((tp->number_modules + 1) * sizeof(int));
+                int_p = malloc((tp->number_modules + 1) * sizeof(int));
                 if (int_p == NULL)
                     return;
                 memcpy(int_p, tp->module_list,
                        tp->number_modules * sizeof(int));
                 int_p[tp->number_modules] = np->modid;
-                if (tp->number_modules > 1)
-                    free((char *) tp->module_list);
+                if (tp->module_list != &tp->modid)
+                    free(tp->module_list);
                 ++tp->number_modules;
                 tp->module_list = int_p;
 
@@ -3409,8 +3408,8 @@ parse_capabilities(FILE * fp, char *name)
                         level++;
                     else if (type == RIGHTBRACKET)
                         level--;
-                } while (type != RIGHTBRACKET && type != ENDOFFILE
-                         && level != 0);
+                } while ((type != RIGHTBRACKET || level != 0)
+                         && type != ENDOFFILE);
                 if (type != RIGHTBRACKET) {
                     print_error("Missing \"}\" after DEFVAL", token, type);
                     goto skip;
@@ -4193,6 +4192,8 @@ unload_all_mibs(void)
         free(ptc->descriptor);
         if (ptc->hint)
             free(ptc->hint);
+        if (ptc->description)
+            free(ptc->description);
     }
     memset(tclist, 0, MAXTC * sizeof(struct tc));
 

@@ -85,13 +85,13 @@ have_gnu_make=$?
 ##
 
 AC_MSG_CHECKING([whether the Perl function system() invokes a POSIX shell])
-if test "x$PERLPROG" != 'x' && test -x "$PERLPROG" && test "x`$PERLPROG -e 'system('"'"'echo $OSTYPE'"'"');'`" != 'x$OSTYPE'; then
+if test "x$PERLPROG" != 'x' && test -x "$PERLPROG" && test "x`$PERLPROG -e 'system('\''echo $OSTYPE'\'');'`" != 'x$OSTYPE'; then
     PERL_SYSTEM_INVOKES_POSIX_SHELL=yes
 else
     PERL_SYSTEM_INVOKES_POSIX_SHELL=no
 fi
+AC_MSG_RESULT([$PERL_SYSTEM_INVOKES_POSIX_SHELL])
 AC_SUBST([PERL_SYSTEM_INVOKES_POSIX_SHELL])
-AC_MSG_RESULT([yes])
 
 
 ##
@@ -171,6 +171,7 @@ AC_SUBST(SNMPLIB_INCLUDES)
 AC_SUBST(AGENT_INCLUDES)
 AC_SUBST(HELPER_INCLUDES)
 AC_SUBST(MIBGROUP_INCLUDES)
+AC_SUBST(EXTERNAL_MIBGROUP_INCLUDES)
 AC_SUBST(GNU_vpath)
 AC_SUBST(NON_GNU_VPATH)
 
@@ -400,12 +401,12 @@ case $target_os in
 	fi
 	;;
 
-    darwin8*|darwin9*|darwin10*)
+    darwin8*|darwin9*|darwin10*|darwin11*|darwin12*|darwin13*)
         #   Flat Namespace linking                      (Mac OS/X)
         #
         AC_MSG_CHECKING([whether darwin ld might need -flat_namespace])
 	if test -z "$MACOSX_DEPLOYMENT_TARGET"; then
-		LDFLAGS="-flat_namespace $LDFLAGS"
+		LDFLAGS="-flat_namespace -framework CoreFoundation -framework CoreServices -framework DiskArbitration -framework IOKit $LDFLAGS"
 		AC_MSG_RESULT([yes])
 	else
 		AC_MSG_RESULT([no])

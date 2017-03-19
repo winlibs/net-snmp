@@ -142,25 +142,6 @@ extern          "C" {
 		goto l ;		\
 	}
 
-    /*
-     * DIFFTIMEVAL
-     *      Set <diff> to the difference between <now> (current) and <then> (past).
-     *
-     * ASSUMES that all inputs are (struct timeval)'s.
-     * Cf. system.c:calculate_time_diff().
-     */
-#define DIFFTIMEVAL(now, then, diff) 			\
-{							\
-	now.tv_sec--;					\
-	now.tv_usec += 1000000L;			\
-	diff.tv_sec  = now.tv_sec  - then.tv_sec;	\
-	diff.tv_usec = now.tv_usec - then.tv_usec;	\
-	if (diff.tv_usec > 1000000L){			\
-		diff.tv_usec -= 1000000L;		\
-		diff.tv_sec++;				\
-	}						\
-}
-
 /**
  * Compute res = a + b.
  *
@@ -226,7 +207,7 @@ extern          "C" {
     u_char         *malloc_random(size_t * size);
     u_char         *malloc_zero(size_t size);
     NETSNMP_IMPORT
-    int             memdup(u_char ** to, const void * from, size_t size);
+    void           *netsnmp_memdup(const void * from, size_t size);
 
     void            netsnmp_check_definedness(const void *packet,
                                               size_t length);

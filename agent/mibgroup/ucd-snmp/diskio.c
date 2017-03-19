@@ -29,6 +29,7 @@
 
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
+#include <net-snmp/agent/agent_callbacks.h>
 
 #include "util_funcs/header_simple_table.h"
 
@@ -63,18 +64,22 @@ static perfstat_disk_t *ps_disk;	/* storage for all disk values */
 static int ps_numdisks;			/* number of disks in system, may change while running */
 #endif
 
-#if defined(bsdi3) || defined(bsdi4)
+#if defined(bsdi3) || defined(bsdi4) || defined(openbsd4)
 #include <string.h>
 #include <sys/param.h>
 #include <sys/sysctl.h>
+#ifdef openbsd4
+#include <sys/disk.h>
+#else
 #include <sys/diskstats.h>
+#endif
 #endif                          /* bsdi */
 
-#if defined (freebsd4) || defined(freebsd5)
+#if defined(HAVE_GETDEVS) || defined(HAVE_DEVSTAT_GETDEVS)
 #include <sys/param.h>
-#if __FreeBSD_version >= 500101
+#if HAVE_DEVSTAT_GETDEVS
 #include <sys/resource.h>       /* for CPUSTATES in devstat.h */
-#elif !defined(dragonfly)
+#elif HAVE_SYS_DKSTAT_H
 #include <sys/dkstat.h>
 #endif
 #include <devstat.h>
@@ -86,7 +91,7 @@ static int ps_numdisks;			/* number of disks in system, may change while running
 
 #endif                          /* freebsd */
 
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
   #define GETDEVS(x) devstat_getdevs(NULL, (x))
 #else
   #define GETDEVS(x) getdevs((x))
@@ -107,18 +112,18 @@ void devla_getstats(unsigned int regno, void * dummy);
 static mach_port_t masterPort;		/* to communicate with I/O Kit	*/
 #endif                          /* darwin */
 
-#ifndef solaris2
+#if !defined(solaris2) && !(defined(aix4) || defined(aix5) || defined(aix6) || defined(aix7))
 static int      getstats(void);
 #endif
 
-#if defined (freebsd4) || defined(freebsd5)
+#if defined (HAVE_GETDEVS) || defined(HAVE_DEVSTAT_GETDEVS)
 void		devla_getstats(unsigned int regno, void *dummy);
 #endif
 
 FILE           *file;
 
-#if 0
-static void	diskio_free_config(void);
+#ifdef linux
+static int	diskio_free_config(int, int, void *, void *);
 #endif
 
          /*********************
@@ -167,7 +172,7 @@ init_diskio(void)
          var_diskio, 1, {5}},
         {DISKIO_WRITES, ASN_COUNTER, NETSNMP_OLDAPI_RONLY,
          var_diskio, 1, {6}},
-#if defined(freebsd4) || defined(freebsd5) || defined(linux)
+#if defined(HAVE_GETDEVS) || defined(HAVE_DEVSTAT_GETDEVS) || defined(linux)
         {DISKIO_LA1, ASN_INTEGER, NETSNMP_OLDAPI_RONLY,
          var_diskio, 1, {9}},
         {DISKIO_LA5, ASN_INTEGER, NETSNMP_OLDAPI_RONLY,
@@ -224,7 +229,7 @@ init_diskio(void)
     ps_disk = NULL;
 #endif
 
-#if defined (freebsd4) || defined(freebsd5) || defined(linux)
+#if defined (HAVE_GETDEVS) || defined(HAVE_DEVSTAT_GETDEVS) || defined(linux)
     devla_getstats(0, NULL);
     /* collect LA data regularly */
     snmp_alarm_register(DISKIO_SAMPLE_INTERVAL, SA_REPEAT, devla_getstats, NULL);
@@ -245,20 +250,29 @@ init_diskio(void)
                                NETSNMP_DS_AGENT_DISKIO_NO_RAM);
 
         /* or possible an exclusion pattern? */
+
+    snmp_register_callback(SNMP_CALLBACK_APPLICATION,
+	                   SNMPD_CALLBACK_PRE_UPDATE_CONFIG,
+	                   diskio_free_config, NULL);
+
 #endif
 }
 
-#if 0
+#ifdef linux
 /* to do: make sure diskio_free_config() gets invoked upon SIGHUP. */
-static void
-diskio_free_config(void)
+static int
+diskio_free_config(int major, int minor, void *serverarg, void *clientarg)
 {
+    DEBUGMSGTL(("diskio", "free config %d\n",
+		netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID,
+				       NETSNMP_DS_AGENT_DISKIO_NO_RAM)));
     netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, 
 			   NETSNMP_DS_AGENT_DISKIO_NO_FD,   0);
     netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, 
 			   NETSNMP_DS_AGENT_DISKIO_NO_LOOP, 0);
     netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, 
 			   NETSNMP_DS_AGENT_DISKIO_NO_RAM,  0);
+    return 0;
 }
 #endif
 
@@ -477,6 +491,132 @@ var_diskio(struct variable * vp,
 }
 #endif                          /* bsdi */
 
+#if defined(openbsd4)
+static int      ndisk;
+static struct diskstats *dk;
+static char   **dkname;
+
+static int
+getstats(void)
+{
+    time_t          now;
+    int             mib[2];
+    char           *t, *tp,*te;
+    size_t          size, dkn_size;
+    int             i;
+
+    now = time(NULL);
+    if (cache_time + CACHE_TIMEOUT > now) {
+        return 1;
+    }
+    mib[0] = CTL_HW;
+    mib[1] = HW_DISKSTATS;
+    size = 0;
+    if (sysctl(mib, 2, NULL, &size, NULL, 0) < 0) {
+        perror("Can't get size of HW_DISKSTATS mib");
+        return 0;
+    }
+    if (ndisk != size / sizeof(*dk)) {
+        if (dk)
+            free(dk);
+        if (dkname) {
+            for (i = 0; i < ndisk; i++)
+                if (dkname[i])
+                    free(dkname[i]);
+            free(dkname);
+        }
+        ndisk = size / sizeof(*dk);
+        if (ndisk == 0)
+            return 0;
+        dkname = malloc(ndisk * sizeof(char *));
+        mib[0] = CTL_HW;
+        mib[1] = HW_DISKNAMES;
+        if (sysctl(mib, 2, NULL, &dkn_size, NULL, 0) < 0) {
+            perror("Can't get size of HW_DISKNAMES mib");
+            return 0;
+        }
+        te = tp = t = malloc(dkn_size);
+        if (sysctl(mib, 2, t, &dkn_size, NULL, 0) < 0) {
+            perror("Can't get size of HW_DISKNAMES mib");
+            return 0;
+        }
+        for (i = 0; i < ndisk; i++) {
+	    while (te-t < dkn_size && *te != ',') te++;
+	    *te++ = '\0';
+            dkname[i] = strdup(tp);
+            tp = te;
+        }
+        free(t);
+        dk = malloc(ndisk * sizeof(*dk));
+    }
+    mib[0] = CTL_HW;
+    mib[1] = HW_DISKSTATS;
+    if (sysctl(mib, 2, dk, &size, NULL, 0) < 0) {
+        perror("Can't get HW_DISKSTATS mib");
+        return 0;
+    }
+    cache_time = now;
+    return 1;
+}
+
+u_char         *
+var_diskio(struct variable * vp,
+           oid * name,
+           size_t * length,
+           int exact, size_t * var_len, WriteMethod ** write_method)
+{
+    static long     long_ret;
+    static struct counter64 c64_ret;
+    unsigned int    indx;
+
+    if (getstats() == 0)
+        return 0;
+
+    if (header_simple_table
+        (vp, name, length, exact, var_len, write_method, ndisk))
+        return NULL;
+
+    indx = (unsigned int) (name[*length - 1] - 1);
+    if (indx >= ndisk)
+        return NULL;
+
+    switch (vp->magic) {
+    case DISKIO_INDEX:
+        long_ret = (long) indx + 1;
+        return (u_char *) & long_ret;
+    case DISKIO_DEVICE:
+        *var_len = strlen(dkname[indx]);
+        return (u_char *) dkname[indx];
+    case DISKIO_NREAD:
+        long_ret = (unsigned long) (dk[indx].ds_rbytes) & 0xffffffff;
+        return (u_char *) & long_ret;
+    case DISKIO_NWRITTEN:
+        long_ret = (unsigned long) (dk[indx].ds_wbytes) & 0xffffffff;
+        return (u_char *) & long_ret;
+    case DISKIO_READS:
+        long_ret = (unsigned long) dk[indx].ds_rxfer & 0xffffffff;
+        return (u_char *) & long_ret;
+    case DISKIO_WRITES:
+        long_ret = (unsigned long) dk[indx].ds_wxfer & 0xffffffff;
+        return (u_char *) & long_ret;
+    case DISKIO_NREADX:
+        *var_len = sizeof(struct counter64);
+        c64_ret.low = dk[indx].ds_rbytes & 0xffffffff;
+        c64_ret.high = dk[indx].ds_rbytes >> 32;
+        return (u_char *) & c64_ret;
+    case DISKIO_NWRITTENX:
+        *var_len = sizeof(struct counter64);
+        c64_ret.low = dk[indx].ds_rbytes & 0xffffffff;
+        c64_ret.high = dk[indx].ds_rbytes >> 32;
+        return (u_char *) & c64_ret;
+
+    default:
+        ERROR_MSG("diskio.c: don't know how to handle this request.");
+    }
+    return NULL;
+}
+#endif                          /* openbsd */
+
 #ifdef __NetBSD__
 #include <sys/sysctl.h>
 static int      ndisk;
@@ -628,12 +768,12 @@ var_diskio(struct variable * vp,
 }
 #endif /* __NetBSD__ */
 
-#if defined(freebsd4) || defined(freebsd5)
+#if defined(HAVE_GETDEVS) || defined(HAVE_DEVSTAT_GETDEVS)
 
 /* disk load average patch by Rojer */
 
 struct dev_la {
-#if ( defined(freebsd5) && __FreeBSD_version >= 500107 )
+#if HAVE_DEVSTAT_GETDEVS
         struct bintime prev;
 #else
         struct timeval prev;
@@ -645,7 +785,7 @@ struct dev_la {
 static struct dev_la *devloads = NULL;
 static int ndevs = 0;
 
-#if ! ( defined(freebsd5) && __FreeBSD_version >= 500107 )
+#if ! HAVE_DEVSTAT_GETDEVS
 double devla_timeval_diff(struct timeval *t1, struct timeval *t2) {
 
         double dt1 = (double) t1->tv_sec + (double) t1->tv_usec * 0.000001;
@@ -707,7 +847,7 @@ void devla_getstats(unsigned int regno, void *dummy) {
                 }
 
         for (i=0; i<ndevs; i++) {
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
                 busy_time = devstat_compute_etime(&lastat->dinfo->devices[i].busy_time, &devloads[i].prev);
 #else
                 busy_time = devla_timeval_diff(&devloads[i].prev, &lastat->dinfo->devices[i].busy_time);
@@ -803,14 +943,14 @@ var_diskio(struct variable * vp,
         *var_len = strlen(stat->dinfo->devices[indx].device_name);
         return (u_char *) stat->dinfo->devices[indx].device_name;
     case DISKIO_NREAD:
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
         long_ret = (signed long) stat->dinfo->devices[indx].bytes[DEVSTAT_READ];
 #else
         long_ret = (signed long) stat->dinfo->devices[indx].bytes_read;
 #endif
         return (u_char *) & long_ret;
     case DISKIO_NWRITTEN:
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
         long_ret = (signed long) stat->dinfo->devices[indx].bytes[DEVSTAT_WRITE];
 #else
         long_ret = (signed long) stat->dinfo->devices[indx].bytes_written;
@@ -818,7 +958,7 @@ var_diskio(struct variable * vp,
         return (u_char *) & long_ret;
     case DISKIO_NREADX:
         *var_len = sizeof(struct counter64);
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
         longlong_ret = stat->dinfo->devices[indx].bytes[DEVSTAT_READ];
 #else
         longlong_ret = stat->dinfo->devices[indx].bytes_read;
@@ -828,7 +968,7 @@ var_diskio(struct variable * vp,
         return (u_char *) & c64_ret;
     case DISKIO_NWRITTENX:
         *var_len = sizeof(struct counter64);
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
         longlong_ret = stat->dinfo->devices[indx].bytes[DEVSTAT_WRITE];
 #else
         longlong_ret = stat->dinfo->devices[indx].bytes_written;
@@ -837,14 +977,14 @@ var_diskio(struct variable * vp,
         c64_ret.high = longlong_ret >> 32;
         return (u_char *) & c64_ret;
     case DISKIO_READS:
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
         long_ret = (signed long) stat->dinfo->devices[indx].operations[DEVSTAT_READ];
 #else
         long_ret = (signed long) stat->dinfo->devices[indx].num_reads;
 #endif
         return (u_char *) & long_ret;
     case DISKIO_WRITES:
-#if defined(freebsd5) && __FreeBSD_version >= 500107
+#if HAVE_DEVSTAT_GETDEVS
         long_ret = (signed long) stat->dinfo->devices[indx].operations[DEVSTAT_WRITE];
 #else
         long_ret = (signed long) stat->dinfo->devices[indx].num_writes;
@@ -1145,7 +1285,11 @@ var_diskio(struct variable * vp,
 #define kIDXBytesWritten	1
 #define kIDXNumReads		2
 #define kIDXNumWrites		3
-#define kIDXLast		3
+#define kIDXBytesReadXhi	4
+#define kIDXBytesReadXlo	5
+#define kIDXBytesWrittenXhi	6
+#define kIDXBytesWrittenXlo	7
+#define kIDXLast		7
 
 struct drivestats {
     char name[MAXDRIVENAME + 1];
@@ -1166,6 +1310,7 @@ collect_drive_stats(io_registry_entry_t driver, long *stats)
     CFDictionaryRef properties;
     CFDictionaryRef statistics;
     long            value;
+    SInt64          value64;
     kern_return_t   status;
     int             i;
 
@@ -1214,6 +1359,21 @@ collect_drive_stats(io_registry_entry_t driver, long *stats)
 						 CFSTR(kIOBlockStorageDriverStatisticsWritesKey)))) {
 	    CFNumberGetValue(number, kCFNumberSInt32Type, &value);
 	    stats[kIDXNumWrites] = value;
+	}
+	/* grab the 64 bit versions of the bytes read */
+	if ((number = (CFNumberRef)CFDictionaryGetValue(statistics,
+						 CFSTR(kIOBlockStorageDriverStatisticsBytesReadKey)))) {
+	    CFNumberGetValue(number, kCFNumberSInt64Type, &value64);
+	    stats[kIDXBytesReadXhi] = (long)(value64 >> 32);
+	    stats[kIDXBytesReadXlo] = (long)(value64 & 0xffffffff);	
+	}
+		
+	/* grab the 64 bit versions of the bytes written */
+	if ((number = (CFNumberRef)CFDictionaryGetValue(statistics,
+						 CFSTR(kIOBlockStorageDriverStatisticsBytesWrittenKey)))) {
+	    CFNumberGetValue(number, kCFNumberSInt64Type, &value64);
+	    stats[kIDXBytesWrittenXhi] = (long)(value64 >> 32);
+	    stats[kIDXBytesWrittenXlo] = (long)(value64 & 0xffffffff);	
 	}
     }
     /* we're done with the properties, release them */
@@ -1298,7 +1458,7 @@ getstats(void)
     if (status != KERN_SUCCESS) {
 	snmp_log(LOG_ERR, "diskio: couldn't match whole IOMedia devices\n");
 /*	fprintf(stderr,"Couldn't match whole IOMedia devices\n"); */
-	return(1);
+	return -1;
     }
 
     num_drives = 0;  /* NB: Incremented by handle_drive */
@@ -1309,7 +1469,7 @@ getstats(void)
     IOObjectRelease(drivelist);
 
     cache_time = now;
-    return (0);
+    return 0;
 }
 
 u_char         *
@@ -1319,6 +1479,7 @@ var_diskio(struct variable * vp,
            int exact, size_t * var_len, WriteMethod ** write_method)
 {
     static long     long_ret;
+    static struct   counter64 c64_ret;
     unsigned int    indx;
 
     if (getstats() == 1) {
@@ -1355,7 +1516,16 @@ var_diskio(struct variable * vp,
 	case DISKIO_WRITES:
 	    long_ret = (signed long) drivestat[indx].stats[kIDXNumWrites];
 	    return (u_char *) & long_ret;
-
+	case DISKIO_NREADX:
+	    *var_len = 8;
+	    c64_ret.low = (signed long) drivestat[indx].stats[kIDXBytesReadXlo];
+	    c64_ret.high = (signed long) drivestat[indx].stats[kIDXBytesReadXhi];
+	    return (u_char *) & c64_ret;
+	case DISKIO_NWRITTENX:
+	    *var_len = 8;
+	    c64_ret.low = (signed long) drivestat[indx].stats[kIDXBytesWrittenXlo];
+	    c64_ret.high = (signed long) drivestat[indx].stats[kIDXBytesWrittenXhi];
+	    return (u_char *) & c64_ret;
 	default:
 	    ERROR_MSG("diskio.c: don't know how to handle this request.");
     }

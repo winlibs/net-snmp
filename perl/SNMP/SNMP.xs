@@ -242,6 +242,8 @@ __libraries_init(char *appname)
             return;
         have_inited = 1;
 
+        SOCK_STARTUP;
+
         netsnmp_ds_set_boolean(NETSNMP_DS_LIBRARY_ID, 
                                NETSNMP_DS_LIB_QUICK_PRINT, 1);
         init_snmp(appname);
@@ -250,8 +252,6 @@ __libraries_init(char *appname)
         netsnmp_ds_set_int(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_PRINT_SUFFIX_ONLY, 1);
 	netsnmp_ds_set_int(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_OID_OUTPUT_FORMAT,
                                               NETSNMP_OID_OUTPUT_SUFFIX);
-        SOCK_STARTUP;
-    
     }
 
 static void
@@ -942,7 +942,7 @@ char * soid_str;
 
    if (!soid_str || !*soid_str) return SUCCESS;/* successfully added nothing */
    if (*soid_str == '.') soid_str++;
-   soid_buf = strdup(soid_str);
+   soid_buf = netsnmp_strdup(soid_str);
    if (!soid_buf)
        return FAILURE;
    cp = strtok_r(soid_buf,".",&st);
@@ -951,7 +951,7 @@ char * soid_str;
      /* doid_arr[(*doid_arr_len)++] =  atoi(cp); */
      cp = strtok_r(NULL,".",&st);
    }
-   free(soid_buf);
+   netsnmp_free(soid_buf);
    return(SUCCESS);
 }
 
@@ -1004,16 +1004,16 @@ __add_var_val_str(pdu, name, name_length, val, len, type)
       case TYPE_GAUGE:
       case TYPE_UNSIGNED32:
         vars->type = ASN_GAUGE;
-        goto UINT;
+        goto as_uint;
       case TYPE_COUNTER:
         vars->type = ASN_COUNTER;
-        goto UINT;
+        goto as_uint;
       case TYPE_TIMETICKS:
         vars->type = ASN_TIMETICKS;
-        goto UINT;
+        goto as_uint;
       case TYPE_UINTEGER:
         vars->type = ASN_UINTEGER;
-UINT:
+as_uint:
         vars->val.integer = netsnmp_malloc(sizeof(long));
         if (val)
             sscanf(val,"%lu",vars->val.integer);
@@ -1026,15 +1026,15 @@ UINT:
 
       case TYPE_OCTETSTR:
 	vars->type = ASN_OCTET_STR;
-	goto OCT;
+	goto as_oct;
 
       case TYPE_BITSTRING:
 	vars->type = ASN_OCTET_STR;
-	goto OCT;
+	goto as_oct;
 
       case TYPE_OPAQUE:
         vars->type = ASN_OCTET_STR;
-OCT:
+as_oct:
         vars->val.string = netsnmp_malloc(len);
         vars->val_len = len;
         if (val && len)
@@ -2689,9 +2689,9 @@ snmp_new_v3_session(version, peer, retries, timeout, sec_name, sec_level, sec_en
            }
            if (session.securityLevel >= SNMP_SEC_LEVEL_AUTHNOPRIV) {
                if (auth_localized_key_len) {
-                   memdup(&session.securityAuthLocalKey,
-                          (u_char*)auth_localized_key,
-                          auth_localized_key_len);
+                   session.securityAuthLocalKey =
+                       netsnmp_memdup(auth_localized_key,
+                                      auth_localized_key_len);
                    session.securityAuthLocalKeyLen = auth_localized_key_len;
                } else if (auth_master_key_len) {
                    session.securityAuthKeyLen =
@@ -2739,9 +2739,9 @@ snmp_new_v3_session(version, peer, retries, timeout, sec_name, sec_level, sec_en
            }
            if (session.securityLevel >= SNMP_SEC_LEVEL_AUTHPRIV) {
                if (priv_localized_key_len) {
-                   memdup(&session.securityPrivLocalKey,
-                          (u_char*)priv_localized_key,
-                          priv_localized_key_len);
+                   session.securityPrivLocalKey =
+                       netsnmp_memdup(priv_localized_key,
+                                      priv_localized_key_len);
                    session.securityPrivLocalKeyLen = priv_localized_key_len;
                } else if (priv_master_key_len) {
                    session.securityPrivKeyLen =

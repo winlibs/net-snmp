@@ -59,6 +59,9 @@ _fsys_type( int type)
 #ifdef MNT_PROCFS
         case MNT_PROCFS:
 #endif
+#ifdef MNT_ACFS
+        case MNT_ACFS:
+#endif
         case MNT_SFS:
         case MNT_CACHEFS:
             return NETSNMP_FS_TYPE_OTHER;
@@ -93,7 +96,7 @@ netsnmp_fsys_arch_load( void )
     /*
      * Retrieve information about the currently mounted filesystems...
      */
-    ret = mntctl(MCTL_QUERY, sizeof(uint), &size);
+    ret = mntctl(MCTL_QUERY, sizeof(uint), (void *) &size);
     if ( ret != 0 || size<=0 ) {
         snmp_log_perror( "initial mntctl failed" );
         return;
@@ -105,7 +108,7 @@ netsnmp_fsys_arch_load( void )
         return;
     }
 
-    ret = mntctl(MCTL_QUERY, size, aixmnt );
+    ret = mntctl(MCTL_QUERY, size, (void *) aixmnt);
     if ( ret <= 0 ) {
         free(aixmnt);
         snmp_log_perror( "main mntctl failed" );
@@ -160,7 +163,7 @@ netsnmp_fsys_arch_load( void )
             continue;
 
         if ( statfs( entry->path, &stat_buf ) < 0 ) {
-            snprintf( tmpbuf, sizeof(tmpbuf), "Cannot statfs %s\n", entry->path );
+            snprintf( tmpbuf, sizeof(tmpbuf), "Cannot statfs %s", entry->path );
             snmp_log_perror( tmpbuf );
             continue;
         }

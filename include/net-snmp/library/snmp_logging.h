@@ -5,11 +5,7 @@
 #include <net-snmp/output_api.h>
 
 #if HAVE_SYSLOG_H
-#ifdef PHP_WIN32
-# include <win32\syslog.h>
-#else
-# include <syslog.h>
-#endif
+#include <syslog.h>
 #endif
 #include <stdio.h>
 #include <stdarg.h>

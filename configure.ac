@@ -10,7 +10,7 @@
 #
 # Process this file with autoconf to produce a configure script.
 #
-AC_INIT([Net-SNMP], [5.7.2], [net-snmp-coders@lists.sourceforge.net])
+AC_INIT([Net-SNMP], [5.7.3], [net-snmp-coders@lists.sourceforge.net])
 AC_PREREQ([2.63])
 AC_CONFIG_SRCDIR([agent/snmpd.c])
 AC_REVISION([$Revision$])
@@ -95,6 +95,7 @@ AC_CONFIG_FILES([net-snmp-config:net-snmp-config.in],
 AC_CONFIG_FILES([net-snmp-create-v3-user:net-snmp-create-v3-user.in],
 		[chmod +x net-snmp-create-v3-user])
 AC_CONFIG_FILES([dist/generation-scripts/gen-variables:dist/generation-scripts/gen-variables.in])
+AC_CONFIG_FILES([local/snmpconf])
 
 AC_CONFIG_COMMANDS([default], echo timestamp > stamp-h)
 

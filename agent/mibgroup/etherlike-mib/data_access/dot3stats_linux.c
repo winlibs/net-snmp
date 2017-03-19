@@ -39,7 +39,8 @@ dot3stats_interface_name_list_get (struct ifname *list_head, int *retval)
     for (p = addrs; p; p = p->ifa_next) {
 
         if (!list_head) {
-            if ( (list_head = (struct ifname *) malloc (sizeof(struct ifname))) < 0) {
+            list_head = malloc(sizeof(struct ifname));
+            if (!list_head) {
                 DEBUGMSGTL(("access:dot3StatsTable:interface_name_list_get",
                             "memory allocation failed\n"));
                 snmp_log (LOG_ERR, "access:dot3StatsTable,interface_name_list_get, memory allocation failed\n");
@@ -59,7 +60,8 @@ dot3stats_interface_name_list_get (struct ifname *list_head, int *retval)
         if (nameptr1)
             continue;
 
-        if ( (nameptr2->ifn_next = (struct ifname *) malloc (sizeof(struct ifname))) < 0) {
+        nameptr2->ifn_next = malloc(sizeof(struct ifname));
+        if (!nameptr2->ifn_next) {
             DEBUGMSGTL(("access:dot3StatsTable:interface_name_list_get",
                         "memory allocation failed\n"));
             snmp_log (LOG_ERR, "access:dot3StatsTable,interface_name_list_get, memory allocation failed\n");
@@ -440,7 +442,7 @@ _dot3Stats_netlink_get_errorcntrs(dot3StatsTable_rowreq_ctx *rowreq_ctx, const c
         {
             dot3StatsTable_data *data = &rowreq_ctx->data;
 
-            snmp_log(LOG_ERR, "IFLA_STATS for %s\n", name);
+            DEBUGMSGTL(("access:dot3StatsTable", "IFLA_STATS for %s\n", name));
 
             data->dot3StatsFCSErrors = ke->stats.rx_crc_errors;
             rowreq_ctx->column_exists_flags |= COLUMN_DOT3STATSFCSERRORS_FLAG;
@@ -527,7 +529,7 @@ interface_dot3stats_get_errorcounters (dot3StatsTable_rowreq_ctx *rowreq_ctx, co
 
     if (_dot3Stats_netlink_get_errorcntrs(rowreq_ctx, name) == 0)
     {
-        snmp_log(LOG_NOTICE, "interface_dot3stats_get_errorcounters: got data from IFLA_STATS\n");
+        DEBUGMSGTL(("access:dot3StatsTable", "interface_dot3stats_get_errorcounters: got data from IFLA_STATS\n"));
         return;
     }
 

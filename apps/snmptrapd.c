@@ -289,6 +289,7 @@ usage(void)
     fprintf(stderr, "  -v, --version\t\tdisplay version information\n");
 #if defined(USING_AGENTX_SUBAGENT_MODULE) && !defined(NETSNMP_SNMPTRAPD_DISABLE_AGENTX)
     fprintf(stderr, "  -x ADDRESS\t\tuse ADDRESS as AgentX address\n");
+    fprintf(stderr, "  -X\t\t\tdon't become a subagent\n");
 #endif
     fprintf(stderr,
             "  -O <OUTOPTS>\t\ttoggle options controlling output display\n");
@@ -443,6 +444,7 @@ free_trapd_address(void)
 {
     if (default_port != ddefault_port) {
         free(default_port);
+        default_port = ddefault_port;
     }
 }
 
@@ -645,7 +647,7 @@ SnmpTrapdMain(int argc, TCHAR * argv[])
 main(int argc, char *argv[])
 #endif
 {
-    char            options[128] = "aAc:CdD::efF:g:hHI:L:m:M:no:O:PqsS:tu:vx:-:";
+    char            options[128] = "aAc:CdD::efF:g:hHI:L:m:M:no:O:Ptu:vx:X-:";
     netsnmp_session *sess_list = NULL, *ss = NULL;
     netsnmp_transport *transport = NULL;
     int             arg, i = 0;
@@ -958,6 +960,7 @@ main(int argc, char *argv[])
             exit(0);
             break;
 
+#if defined(USING_AGENTX_SUBAGENT_MODULE) && !defined(NETSNMP_SNMPTRAPD_DISABLE_AGENTX)
         case 'x':
             if (optarg != NULL) {
                 netsnmp_ds_set_string(NETSNMP_DS_APPLICATION_ID,
@@ -967,6 +970,11 @@ main(int argc, char *argv[])
                 exit(1);
             }
             break;
+
+         case 'X':
+            agentx_subagent = 0;
+            break;
+#endif
 
         default:
             fprintf(stderr, "invalid option: -%c\n", arg);
@@ -1193,7 +1201,6 @@ main(int argc, char *argv[])
                  * successfully so what could have gone wrong?  
                  */
                 snmptrapd_close_sessions(sess_list);
-                netsnmp_transport_free(transport);
                 snmp_log(LOG_ERR, "couldn't open snmp - %s", strerror(errno));
                 SOCK_CLEANUP;
                 exit(1);

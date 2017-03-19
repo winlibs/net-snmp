@@ -464,17 +464,16 @@ sprint_realloc_octet_string(u_char ** buf, size_t * buf_len,
     u_char         *cp;
     int             output_format, cnt;
 
-    if ((var->type != ASN_OCTET_STR) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        const char      str[] = "Wrong Type (should be OCTET STRING): ";
-        if (snmp_cstrcat
-            (buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_OCTET_STR) {
+        if (!netsnmp_ds_get_boolean(
+                    NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            const char      str[] = "Wrong Type (should be OCTET STRING): ";
+            if (!snmp_cstrcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
 
@@ -742,16 +741,16 @@ sprint_realloc_float(u_char ** buf, size_t * buf_len,
                      const struct enum_list *enums,
                      const char *hint, const char *units)
 {
-    if ((var->type != ASN_OPAQUE_FLOAT) &&
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        if (snmp_cstrcat(buf, buf_len, out_len, allow_realloc, 
-                         "Wrong Type (should be Float): ")) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_OPAQUE_FLOAT) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be Float): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -812,17 +811,16 @@ sprint_realloc_double(u_char ** buf, size_t * buf_len,
                       const struct enum_list *enums,
                       const char *hint, const char *units)
 {
-    if ((var->type != ASN_OPAQUE_DOUBLE) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        if (snmp_cstrcat
-            (buf, buf_len, out_len, allow_realloc, 
-             "Wrong Type (should be Double): ")) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_OPAQUE_DOUBLE) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be Double): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -887,20 +885,21 @@ sprint_realloc_counter64(u_char ** buf, size_t * buf_len, size_t * out_len,
 {
     char            a64buf[I64CHARSZ + 1];
 
-    if ((var->type != ASN_COUNTER64
+    if (var->type != ASN_COUNTER64
 #ifdef NETSNMP_WITH_OPAQUE_SPECIAL_TYPES
         && var->type != ASN_OPAQUE_COUNTER64
         && var->type != ASN_OPAQUE_I64 && var->type != ASN_OPAQUE_U64
 #endif
-        ) && (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        if (snmp_cstrcat(buf, buf_len, out_len, allow_realloc, 
-                        "Wrong Type (should be Counter64): ")) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+        ) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be Counter64): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -988,23 +987,25 @@ sprint_realloc_opaque(u_char ** buf, size_t * buf_len,
                       const struct enum_list *enums,
                       const char *hint, const char *units)
 {
-    if ((var->type != ASN_OPAQUE
+    if (var->type != ASN_OPAQUE
 #ifdef NETSNMP_WITH_OPAQUE_SPECIAL_TYPES
         && var->type != ASN_OPAQUE_COUNTER64
         && var->type != ASN_OPAQUE_U64
         && var->type != ASN_OPAQUE_I64
         && var->type != ASN_OPAQUE_FLOAT && var->type != ASN_OPAQUE_DOUBLE
 #endif                          /* NETSNMP_WITH_OPAQUE_SPECIAL_TYPES */
-        ) && (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        if (snmp_cstrcat(buf, buf_len, out_len, allow_realloc, 
-                         "Wrong Type (should be Opaque): ")) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+        ) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be Opaque): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
+
 #ifdef NETSNMP_WITH_OPAQUE_SPECIAL_TYPES
     switch (var->type) {
     case ASN_OPAQUE_COUNTER64:
@@ -1080,17 +1081,16 @@ sprint_realloc_object_identifier(u_char ** buf, size_t * buf_len,
 {
     int             buf_overflow = 0;
 
-    if ((var->type != ASN_OBJECT_ID) &&
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] =
-            "Wrong Type (should be OBJECT IDENTIFIER): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_OBJECT_ID) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be OBJECT IDENTIFIER): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -1150,16 +1150,16 @@ sprint_realloc_timeticks(u_char ** buf, size_t * buf_len, size_t * out_len,
 {
     char            timebuf[40];
 
-    if ((var->type != ASN_TIMETICKS) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be Timeticks): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_TIMETICKS) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be Timeticks): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_NUMERIC_TIMETICKS)) {
@@ -1207,7 +1207,7 @@ sprint_realloc_timeticks(u_char ** buf, size_t * buf_len, size_t * out_len,
  * @param allow_realloc if not zero reallocate the buffer to fit the 
  *                      needed size.
  * @param val      The variable to encode.
- * @param decimaltype The enumeration ff this variable is enumerated. may be NULL.
+ * @param decimaltype 'd' or 'u' depending on integer type
  * @param hint     Contents of the DISPLAY-HINT clause of the MIB.
  *                 See RFC 1903 Section 3.1 for details. may _NOT_ be NULL.
  * @param units    Contents of the UNITS clause of the MIB. may be NULL.
@@ -1222,19 +1222,19 @@ sprint_realloc_hinted_integer(u_char ** buf, size_t * buf_len,
                               const char *hint, const char *units)
 {
     char            fmt[10] = "%l@", tmp[256];
-    int             shift, len;
-
-    if (hint[1] == '-') {
-        shift = atoi(hint + 2);
-    } else {
-        shift = 0;
-    }
+    int             shift = 0, len, negative = 0;
 
     if (hint[0] == 'd') {
         /*
          * We might *actually* want a 'u' here.  
          */
+        if (hint[1] == '-')
+            shift = atoi(hint + 2);
         fmt[2] = decimaltype;
+        if (val < 0) {
+            negative = 1;
+            val = -val;
+        }
     } else {
         /*
          * DISPLAY-HINT character is 'b', 'o', or 'x'.  
@@ -1242,7 +1242,18 @@ sprint_realloc_hinted_integer(u_char ** buf, size_t * buf_len,
         fmt[2] = hint[0];
     }
 
-    sprintf(tmp, fmt, val);
+    if (hint[0] == 'b') {
+	unsigned long int bit = 0x80000000LU;
+	char *bp = tmp;
+	while (bit) {
+	    *bp++ = val & bit ? '1' : '0';
+	    bit >>= 1;
+	}
+	*bp = 0;
+    }
+    else
+	sprintf(tmp, fmt, val);
+
     if (shift != 0) {
         len = strlen(tmp);
         if (shift <= len) {
@@ -1264,6 +1275,14 @@ sprint_realloc_hinted_integer(u_char ** buf, size_t * buf_len,
             }
             tmp[0] = '.';
         }
+    }
+    if (negative) {
+        len = strlen(tmp)+1;
+        while (len) {
+            tmp[len] = tmp[len-1];
+            len--;
+        }
+        tmp[0] = '-';
     }
     return snmp_strcat(buf, buf_len, out_len, allow_realloc, (u_char *)tmp);
 }
@@ -1298,17 +1317,18 @@ sprint_realloc_integer(u_char ** buf, size_t * buf_len, size_t * out_len,
 {
     char           *enum_string = NULL;
 
-    if ((var->type != ASN_INTEGER) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be INTEGER): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_INTEGER) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be INTEGER): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
+
     for (; enums; enums = enums->next) {
         if (enums->value == *var->val.integer) {
             enum_string = enums->label;
@@ -1401,16 +1421,16 @@ sprint_realloc_uinteger(u_char ** buf, size_t * buf_len, size_t * out_len,
 {
     char           *enum_string = NULL;
 
-    if ((var->type != ASN_UINTEGER) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be UInteger32): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_UINTEGER) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be UInteger32): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     for (; enums; enums = enums->next) {
@@ -1498,17 +1518,16 @@ sprint_realloc_gauge(u_char ** buf, size_t * buf_len, size_t * out_len,
 {
     char            tmp[32];
 
-    if ((var->type != ASN_GAUGE) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] =
-            "Wrong Type (should be Gauge32 or Unsigned32): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_GAUGE) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be Gauge32 or Unsigned32): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -1571,16 +1590,16 @@ sprint_realloc_counter(u_char ** buf, size_t * buf_len, size_t * out_len,
 {
     char            tmp[32];
 
-    if ((var->type != ASN_COUNTER) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be Counter32): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_COUNTER) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be Counter32): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -1634,16 +1653,16 @@ sprint_realloc_networkaddress(u_char ** buf, size_t * buf_len,
 {
     size_t          i;
 
-    if ((var->type != ASN_IPADDRESS) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be NetworkAddress): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_IPADDRESS) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be NetworkAddress): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -1700,16 +1719,16 @@ sprint_realloc_ipaddress(u_char ** buf, size_t * buf_len, size_t * out_len,
 {
     u_char         *ip = var->val.string;
 
-    if ((var->type != ASN_IPADDRESS) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be IpAddress): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_IPADDRESS) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be IpAddress): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -1758,20 +1777,21 @@ sprint_realloc_null(u_char ** buf, size_t * buf_len, size_t * out_len,
                     const struct enum_list *enums,
                     const char *hint, const char *units)
 {
-    if ((var->type != ASN_NULL) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be NULL): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    u_char          str[] = "NULL";
+
+    if (var->type != ASN_NULL) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be NULL): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
-    } else {
-        u_char          str[] = "NULL";
-        return snmp_strcat(buf, buf_len, out_len, allow_realloc, str);
     }
+
+    return snmp_strcat(buf, buf_len, out_len, allow_realloc, str);
 }
 
 
@@ -1806,16 +1826,16 @@ sprint_realloc_bitstring(u_char ** buf, size_t * buf_len, size_t * out_len,
     u_char         *cp;
     char           *enum_string;
 
-    if ((var->type != ASN_BIT_STR && var->type != ASN_OCTET_STR) &&
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be BITS): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_BIT_STR && var->type != ASN_OCTET_STR) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be BITS): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -1890,16 +1910,16 @@ sprint_realloc_nsapaddress(u_char ** buf, size_t * buf_len,
                            const struct enum_list *enums, const char *hint,
                            const char *units)
 {
-    if ((var->type != ASN_NSAP) && 
-        (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT))) {
-        u_char          str[] = "Wrong Type (should be NsapAddress): ";
-        if (snmp_strcat(buf, buf_len, out_len, allow_realloc, str)) {
-            return sprint_realloc_by_type(buf, buf_len, out_len,
+    if (var->type != ASN_NSAP) {
+        if (!netsnmp_ds_get_boolean(
+                NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICKE_PRINT)) {
+            u_char          str[] = "Wrong Type (should be NsapAddress): ";
+            if (!snmp_strcat(buf, buf_len, out_len, allow_realloc, str))
+                return 0;
+        }
+        return sprint_realloc_by_type(buf, buf_len, out_len,
                                           allow_realloc, var, NULL, NULL,
                                           NULL);
-        } else {
-            return 0;
-        }
     }
 
     if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_QUICK_PRINT)) {
@@ -2832,7 +2852,7 @@ netsnmp_mibindex_lookup( const char *dirname )
 int
 _mibindex_add( const char *dirname, int i )
 {
-    const int old_mibindex = _mibindex;
+    const int old_mibindex_max = _mibindex_max;
 
     DEBUGMSGTL(("mibindex", "add: %s (%d)\n", dirname, i ));
     if ( i == -1 )
@@ -2846,15 +2866,15 @@ _mibindex_add( const char *dirname, int i )
         _mibindexes = realloc(_mibindexes,
                               _mibindex_max * sizeof(_mibindexes[0]));
         netsnmp_assert(_mibindexes);
-        memset(_mibindexes + old_mibindex, 0,
-               (i - old_mibindex) * sizeof(_mibindexes[0]));
+        memset(_mibindexes + old_mibindex_max, 0,
+               (_mibindex_max - old_mibindex_max) * sizeof(_mibindexes[0]));
     }
-    DEBUGMSGTL(("mibindex", "add: %d/%d/%d\n", i, _mibindex, _mibindex_max ));
 
     _mibindexes[ i ] = strdup( dirname );
     if ( i >= _mibindex )
         _mibindex = i+1;
 
+    DEBUGMSGTL(("mibindex", "add: %d/%d/%d\n", i, _mibindex, _mibindex_max ));
     return i;
 }
     
@@ -4006,79 +4026,95 @@ dump_realloc_oid_to_inetaddress(const int addr_type, const oid * objid, size_t o
                                 size_t * out_len, int allow_realloc, 
                                 char quotechar)
 {
-    if (buf) {
-        int             i, len;
-        char            intbuf[64], * p;
-        unsigned char  *zc;
-        unsigned long   zone;
+    int             i, len;
+    char            intbuf[64], *p;
+    char *const     end = intbuf + sizeof(intbuf);
+    unsigned char  *zc;
+    unsigned long   zone;
 
-        memset(intbuf, 0, 64);
+    if (!buf)
+        return 1;
 
-        p = intbuf;
-        *p = quotechar;
-        p++;
-        switch (addr_type) {
-            case IPV4:
-            case IPV4Z:
-                if ((addr_type == IPV4  && objidlen != 4) ||
-                    (addr_type == IPV4Z && objidlen != 8))
-                    return 2;
+    for (i = 0; i < objidlen; i++)
+        if (objid[i] < 0 || objid[i] > 255)
+            return 2;
 
-                len = sprintf(p, "%" NETSNMP_PRIo "u.%" NETSNMP_PRIo "u."
-                              "%" NETSNMP_PRIo "u.%" NETSNMP_PRIo "u",
-                              objid[0], objid[1], objid[2], objid[3]);
-                p += len;
-                if (addr_type == IPV4Z) {
-                    zc = (unsigned char*)&zone;
-                    zc[0] = (u_char)(objid[4]);
-                    zc[1] = (u_char)(objid[5]);
-                    zc[2] = (u_char)(objid[6]);
-                    zc[3] = (u_char)(objid[7]);
-                    zone = ntohl(zone);
-                    len = sprintf(p, "%%%lu", zone);
-                    p += len;
-                }
+    p = intbuf;
+    *p++ = quotechar;
 
-                break;
+    switch (addr_type) {
+    case IPV4:
+    case IPV4Z:
+        if ((addr_type == IPV4  && objidlen != 4) ||
+            (addr_type == IPV4Z && objidlen != 8))
+            return 2;
 
-            case IPV6:
-            case IPV6Z:
-                if ((addr_type == IPV6 && objidlen != 16) ||
-                    (addr_type == IPV6Z && objidlen != 20))
-                    return 2;
-
-                len = 0;
-                for (i = 0; i < 16; i ++) {
-                    len = snprintf(p, 4, "%02" NETSNMP_PRIo "x:", objid[i]);
-                    p += len;
-                }
-                p-- ; /* do not include the last ':' */
-
-                if (addr_type == IPV6Z) {
-                    zc = (unsigned char*)&zone;
-                    zc[0] = (u_char)(objid[16]);
-                    zc[1] = (u_char)(objid[17]);
-                    zc[2] = (u_char)(objid[18]);
-                    zc[3] = (u_char)(objid[19]);
-                    zone = ntohl(zone);
-                    len = sprintf(p, "%%%lu", zone);
-                    p += len;
-                }
-
-                break;
-
-            case DNS:
-            default: 
-                /* DNS can just be handled by dump_realloc_oid_to_string() */
+        len = snprintf(p, end - p, "%" NETSNMP_PRIo "u.%" NETSNMP_PRIo "u."
+                      "%" NETSNMP_PRIo "u.%" NETSNMP_PRIo "u",
+                      objid[0], objid[1], objid[2], objid[3]);
+        p += len;
+        if (p >= end)
+            return 2;
+        if (addr_type == IPV4Z) {
+            zc = (unsigned char*)&zone;
+            zc[0] = objid[4];
+            zc[1] = objid[5];
+            zc[2] = objid[6];
+            zc[3] = objid[7];
+            zone = ntohl(zone);
+            len = snprintf(p, end - p, "%%%lu", zone);
+            p += len;
+            if (p >= end)
                 return 2;
         }
 
-        *p = quotechar;
+        break;
 
-        return snmp_strcat(buf, buf_len, out_len, allow_realloc, 
-                                               (const u_char *) intbuf);
+    case IPV6:
+    case IPV6Z:
+        if ((addr_type == IPV6 && objidlen != 16) ||
+            (addr_type == IPV6Z && objidlen != 20))
+            return 2;
+
+        len = 0;
+        for (i = 0; i < 16; i ++) {
+            len = snprintf(p, end - p, "%s%02" NETSNMP_PRIo "x", i ? ":" : "",
+                           objid[i]);
+            p += len;
+            if (p >= end)
+                return 2;
+        }
+
+        if (addr_type == IPV6Z) {
+            zc = (unsigned char*)&zone;
+            zc[0] = objid[16];
+            zc[1] = objid[17];
+            zc[2] = objid[18];
+            zc[3] = objid[19];
+            zone = ntohl(zone);
+            len = snprintf(p, end - p, "%%%lu", zone);
+            p += len;
+            if (p >= end)
+                return 2;
+        }
+
+        break;
+
+    case DNS:
+    default: 
+        /* DNS can just be handled by dump_realloc_oid_to_string() */
+        return 2;
     }
-    return 1;
+
+    *p++ = quotechar;
+    if (p >= end)
+        return 2;
+
+    *p++ = '\0';
+    if (p >= end)
+        return 2;
+
+    return snmp_cstrcat(buf, buf_len, out_len, allow_realloc, intbuf);
 }
 
 int

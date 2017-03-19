@@ -59,7 +59,7 @@ SOFTWARE.
      */
 #ifndef MSVC_PERL
 
-#if !defined(HAVE_READDIR) && !defined(PHP_WIN32)
+#ifndef HAVE_READDIR
     /*
      * structure of a directory entry 
      */
@@ -196,8 +196,7 @@ SOFTWARE.
 #endif
 #ifndef HAVE_STRLCAT
     NETSNMP_IMPORT
-    size_t            strlcat(char * __restrict, const char * __restrict,
-                              size_t);
+    size_t            strlcat(char *, const char *, size_t);
 #endif
 
     int             netsnmp_os_prematch(const char *ospmname,

@@ -124,13 +124,15 @@ snmp_parse_args_descriptions(FILE * outf)
             "  -t TIMEOUT\t\tset the request timeout (in seconds)\n");
     fprintf(outf, "Debugging\n");
     fprintf(outf, "  -d\t\t\tdump input/output packets in hexadecimal\n");
+#ifndef NETSNMP_DISABLE_DEBUGGING
     fprintf(outf,
             "  -D[TOKEN[,...]]\tturn on debugging output for the specified TOKENs\n\t\t\t   (ALL gives extremely verbose debugging output)\n");
+#endif
     fprintf(outf, "General options\n");
     fprintf(outf,
-            "  -m MIB[:...]\t\tload given list of MIBs (ALL loads everything)\n");
+            "  -m MIB[" ENV_SEPARATOR "...]\t\tload given list of MIBs (ALL loads everything)\n");
     fprintf(outf,
-            "  -M DIR[:...]\t\tlook in given list of directories for MIBs\n");
+            "  -M DIR[" ENV_SEPARATOR "...]\t\tlook in given list of directories for MIBs\n");
 #ifndef NETSNMP_DISABLE_MIB_LOADING
     fprintf(outf,
             "    (default: %s)\n", netsnmp_get_mib_directory());
@@ -208,7 +210,7 @@ netsnmp_parse_args(int argc,
      * initialize session to default values 
      */
     snmp_sess_init(session);
-    strcpy(Opts, "Y:VhHm:M:O:I:P:D:dv:r:t:c:Z:e:E:n:u:l:x:X:a:A:p:T:-:3:s:S:L:");
+    strcpy(Opts, "Y:VhHm:M:O:I:P:D:dv:r:t:c:Z:e:E:n:u:l:x:X:a:A:p:T:-:3:L:");
     if (localOpts) {
         if (strlen(localOpts) + strlen(Opts) >= sizeof(Opts)) {
             snmp_log(LOG_ERR, "Too many localOpts in snmp_parse_args()\n");
@@ -300,8 +302,13 @@ netsnmp_parse_args(int argc,
 #endif /* NETSNMP_DISABLE_MIB_LOADING */
 
         case 'D':
+#ifdef NETSNMP_NO_DEBUGGING
+            fprintf(stderr, "Debug not configured in\n");
+            return (NETSNMP_PARSE_ARGS_ERROR_USAGE);
+#else
             debug_register_tokens(optarg);
             snmp_set_do_debugging(1);
+#endif
             break;
 
         case 'd':

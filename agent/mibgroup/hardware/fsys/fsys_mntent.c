@@ -139,6 +139,10 @@ _fsys_type( char *typename )
               !strcmp(typename, MNTTYPE_REISERFS) ||
               !strcmp(typename, MNTTYPE_OCFS2) ||
               !strcmp(typename, MNTTYPE_CVFS) ||
+              !strcmp(typename, MNTTYPE_SIMFS) ||
+              !strcmp(typename, MNTTYPE_BTRFS) ||
+              !strcmp(typename, MNTTYPE_ZFS) ||
+              !strcmp(typename, MNTTYPE_ACFS) ||
               !strcmp(typename, MNTTYPE_LOFS))
        return NETSNMP_FS_TYPE_OTHER;
 
@@ -174,7 +178,7 @@ netsnmp_fsys_arch_load( void )
      */
     fp = fopen( ETC_MNTTAB, "r" );   /* OR setmntent()?? */
     if ( !fp ) {
-        snprintf( tmpbuf, sizeof(tmpbuf), "Cannot open %s\n", ETC_MNTTAB );
+        snprintf( tmpbuf, sizeof(tmpbuf), "Cannot open %s", ETC_MNTTAB );
         snmp_log_perror( tmpbuf );
         return;
     }
@@ -234,7 +238,7 @@ netsnmp_fsys_arch_load( void )
         if ( NSFS_STATFS( entry->path, &stat_buf ) < 0 )
 #endif
         {
-            snprintf( tmpbuf, sizeof(tmpbuf), "Cannot statfs %s\n", entry->path );
+            snprintf( tmpbuf, sizeof(tmpbuf), "Cannot statfs %s", entry->path );
             snmp_log_perror( tmpbuf );
             continue;
         }

@@ -52,7 +52,7 @@ get_old_api_handler(void)
 }
 
 struct variable *
-netsnmp_duplicate_variable(struct variable *var)
+netsnmp_duplicate_variable(const struct variable *var)
 {
     struct variable *var2 = NULL;
     
@@ -71,7 +71,7 @@ netsnmp_duplicate_variable(struct variable *var)
  */
 int
 netsnmp_register_old_api(const char *moduleName,
-                         struct variable *var,
+                         const struct variable *var,
                          size_t varsize,
                          size_t numvars,
                          const oid * mibloc,
@@ -95,8 +95,8 @@ netsnmp_register_old_api(const char *moduleName,
         if (reginfo == NULL)
             return SNMP_ERR_GENERR;
 
-	vp = netsnmp_duplicate_variable((struct variable *)
-					((char *) var + varsize * i));
+	vp = netsnmp_duplicate_variable((const struct variable *)
+					((const char *) var + varsize * i));
 
         reginfo->handler = get_old_api_handler();
         reginfo->handlerName = strdup(moduleName);
@@ -124,7 +124,8 @@ netsnmp_register_old_api(const char *moduleName,
         reginfo->range_ubound = range_ubound;
         reginfo->timeout = timeout;
         reginfo->contextName = (context) ? strdup(context) : NULL;
-        reginfo->modes = HANDLER_CAN_RWRITE;
+        reginfo->modes = vp->acl == NETSNMP_OLDAPI_RONLY ? HANDLER_CAN_RONLY :
+                         HANDLER_CAN_RWRITE;
 
         /*
          * register ourselves in the mib tree 
@@ -140,7 +141,7 @@ netsnmp_register_old_api(const char *moduleName,
 /** registers a row within a mib table */
 int
 netsnmp_register_mib_table_row(const char *moduleName,
-                               struct variable *var,
+                               const struct variable *var,
                                size_t varsize,
                                size_t numvars,
                                oid * mibloc,
@@ -154,8 +155,8 @@ netsnmp_register_mib_table_row(const char *moduleName,
     oid             ubound = 0;
 
     for (i = 0; i < numvars; i++) {
-        struct variable *vr =
-            (struct variable *) ((char *) var + (i * varsize));
+        const struct variable *vr =
+            (const struct variable *) ((const char *) var + (i * varsize));
         netsnmp_handler_registration *r;
         if ( var_subid > (int)mibloclen ) {
             break;    /* doesn't make sense */

@@ -211,7 +211,7 @@ extensible_parse_config(const char *token, char *cptr)
 
     if (*cptr == '.')
         cptr++;
-    if (isdigit(*cptr)) {
+    if (isdigit((unsigned char) *cptr)) {
         /*
          * its a relocatable extensible mib 
          */
@@ -236,9 +236,9 @@ extensible_parse_config(const char *token, char *cptr)
         ptmp->type = SHPROC;
     else
         ptmp->type = EXECPROC;
-    if (isdigit(*cptr)) {
+    if (isdigit((unsigned char) *cptr)) {
         ptmp->miblen = parse_miboid(cptr, ptmp->miboid);
-        while (isdigit(*cptr) || *cptr == '.')
+        while (isdigit((unsigned char) *cptr) || *cptr == '.')
             cptr++;
     }
 
@@ -507,7 +507,7 @@ fixExecError(int action,
         }
         tmp = *((long *) var_val);
         if ((tmp == 1) && (action == COMMIT) && (exten->fixcmd[0] != 0)) {
-            sprintf(ex.command, exten->fixcmd);
+            strlcpy(ex.command, exten->fixcmd, sizeof(ex.command));
             if ((fd = get_exec_output(&ex)) != -1) {
                 file = fdopen(fd, "r");
                 while (fgets(ex.output, sizeof(ex.output), file) != NULL);

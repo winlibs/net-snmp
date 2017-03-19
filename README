@@ -1,4 +1,4 @@
-	       README file for net-snmp Version: 5.7.2
+	       README file for net-snmp Version: 5.7.3
 
 DISCLAIMER
 
@@ -352,6 +352,9 @@ THANKS
     Anders Persson <apersson@users.sourceforge.net>
     Rojer <rojer@users.sourceforge.net>
     Bart Van Assche <bart.vanassche@gmail.com>
+    Pablo Carboni <pcarboni@users.sourceforge.net>
+    Bill Fenner <fenner@gmail.com>
+    Brian Sipos <bsiposrkf@users.sourceforge.net>
 
   We've probably forgotten people on this list.  Let us know if you've
   contributed code and we've left you out.

@@ -592,14 +592,17 @@ get_boottime(void)
     size_t          len;
 #elif defined(NETSNMP_CAN_USE_NLIST)
     int             kmem;
-    static struct nlist nl[] = {
 #if !defined(hpux)
-        {(char *) "_boottime"},
+    static char boottime_name[] = "_boottime";
 #else
-        {(char *) "boottime"},
+    static char boottime_name[] = "boottime";
 #endif
-        {(char *) ""}
-    };
+    static char empty_name[] = "";
+    struct nlist nl[2];
+
+    memset(nl, 0, sizeof(nl));
+    nl[0].n_name = boottime_name;
+    nl[1].n_name = empty_name;
 #endif                          /* NETSNMP_CAN_USE_SYSCTL */
 #endif                          /* hpux10 || hpux 11 */
 
@@ -653,10 +656,11 @@ long
 get_uptime(void)
 {
 #if defined(aix4) || defined(aix5) || defined(aix6) || defined(aix7)
+    static char lbolt_name[] = "lbolt";
     struct nlist nl;
     int kmem;
     time_t lbolt;
-    nl.n_name = "lbolt";
+    nl.n_name = lbolt_name;
     if(knlist(&nl, 1, sizeof(struct nlist)) != 0) return(0);
     if(nl.n_type == 0 || nl.n_value == 0) return(0);
     if((kmem = open("/dev/mem", 0)) < 0) return 0;
@@ -750,13 +754,6 @@ netsnmp_gethostbyname_v4(const char* name, in_addr_t *addr_out)
 
     err = netsnmp_getaddrinfo(name, NULL, &hint, &addrs);
     if (err != 0) {
-#if HAVE_GAI_STRERROR
-        snmp_log(LOG_ERR, "getaddrinfo: %s %s\n", name,
-                 gai_strerror(err));
-#else
-        snmp_log(LOG_ERR, "getaddrinfo: %s (error %d)\n", name,
-                 err);
-#endif
         return -1;
     }
 
@@ -822,7 +819,21 @@ netsnmp_getaddrinfo(const char *name, const char *service,
     val_status_t    val_status;
 #endif
 
-    DEBUGMSGTL(("dns:getaddrinfo", "looking up %s:%s\n", name, service));
+    DEBUGMSGTL(("dns:getaddrinfo", "looking up "));
+    if (name)
+        DEBUGMSG(("dns:getaddrinfo", "\"%s\"", name));
+    else
+        DEBUGMSG(("dns:getaddrinfo", "<NULL>"));
+
+    if (service)
+	DEBUGMSG(("dns:getaddrinfo", ":\"%s\"", service));
+
+    if (hints)
+	DEBUGMSG(("dns:getaddrinfo", " with hint ({ ... })"));
+    else
+	DEBUGMSG(("dns:getaddrinfo", " with no hint"));
+
+    DEBUGMSG(("dns:getaddrinfo", "\n"));
 
     if (NULL == hints) {
         memset(&hint, 0, sizeof hint);
@@ -1307,9 +1318,9 @@ netsnmp_os_prematch(const char *ospmname,
                     const char *ospmrelprefix)
 {
 #if HAVE_SYS_UTSNAME_H
-static int printOSonce = 1;
+  static int printOSonce = 1;
   struct utsname utsbuf;
-  if ( 0 != uname(&utsbuf))
+  if ( 0 > uname(&utsbuf))
     return -1;
 
   if (printOSonce) {

@@ -94,6 +94,9 @@ Either:
 ";
 	exit 1;
     }
+    DIE("Test::Harness must be of version 1.21 or newer\n" .
+	"Install the TAP::Harness module or use the RUNTESTS script\n")
+      if $Test::Harness::VERSION < 1.21;
 }
 
 
@@ -264,7 +267,7 @@ sub rename_tests {
     return @newtests;
 }
 
-# called to possibly manipluate the list of tests to run by building some
+# called to possibly manipulate the list of tests to run by building some
 sub build_tests {
     my (@tests) = @_;
     my @newtests;

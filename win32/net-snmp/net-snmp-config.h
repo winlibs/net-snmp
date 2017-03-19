@@ -5,12 +5,14 @@
 #define NET_SNMP_CONFIG_H
 
 /* _MSC_VER values
-   1600 = 10.0 (2010)
-   1500 =  9.0 (2008)
-   1400 =  8.0 (2005)
-   1310 =  7.1 (2003)
-   1300 =  7.0 (2002)
-   1200 =  6.0
+   1800 = MSVC++ 12.0 (Visual Studio 2013)
+   1700 = MSVC++ 11.0 (Visual Studio 2012)
+   1600 = MSVC++ 10.0 (Visual Studio 2010)
+   1500 = MSVC++  9.0 (Visual Studio 2008)
+   1400 = MSVC++  8.0 (Visual Studio 2005)
+   1310 = MSVC++  7.1 (Visual Studio 2003)
+   1300 = MSVC++  7.0 (Visual Studio 2002)
+   1200 = MSVC++  6.0
 */
 
 #ifdef _MSC_VER
@@ -41,7 +43,7 @@
  * We need at least SP1 for some IPv6 defines in ws2ipdef.h
  */
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x501 /*_WIN32_WINNT_WIN2K*/
+#define _WIN32_WINNT 0x600 /*_WIN32_WINNT_WIN6*/
 #else
 #if _WIN32_WINNT < 0x501
 #error _WIN32_WINNT is too low - it should be set to at least 0x501.
@@ -939,6 +941,9 @@
 /* Define to 1 if you have the <ws2tcpip.h> header file. */
 #define HAVE_WS2TCPIP_H 1
 
+/* Set if IP_PKTINFO is usable */
+#define HAVE_IP_PKTINFO 1
+
 /* Define to 1 if you have the <xti.h> header file. */
 /* #undef HAVE_XTI_H */
 
@@ -1613,10 +1618,17 @@ typedef unsigned int     uintptr_t;
 #endif
 
 #ifndef __cplusplus
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4804) // '-' : unsafe use of type 'bool' in operation
+#endif
 enum {
     netsnmp_compile_time_uintptr_t_size_check
         = sizeof(struct netsnmp_compile_time_uintptr_t_size_check_s { int:-!(sizeof(uintptr_t) == sizeof(void*)); })
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 #endif
 
 /* Define if you have the closesocket function.  */
@@ -1632,7 +1644,7 @@ enum {
 #if defined(_MSC_VER) && _MSC_VER < 1500
 #define vsnprintf _vsnprintf
 #endif
-#if defined(_MSC_VER) && _MSC_VER < 1900
+#ifdef _MSC_VER
 #define snprintf  _snprintf
 #endif
 
@@ -1748,7 +1760,11 @@ enum {
 #endif
 
 /* Define to 1 if you have the `strtoull' function. */
+#if _MSC_VER >= 1800
+#define HAVE_STRTOULL 1
+#else
 /* #undef HAVE_STRTOULL */
+#endif
 
 /*
  * Module configuration and control starts here.

@@ -7,7 +7,7 @@
 #     modify it under the same terms as Perl itself.
 
 package SNMP;
-$VERSION = '5.0702';   # current release version number
+$VERSION = '5.0703';   # current release version number
 
 use strict;
 use warnings;
@@ -1196,7 +1196,7 @@ sub trap {
        my $specific = $param{specific} || 0;
        @res = SNMP::_trapV1($this, $enterprise, $agent, $generic, $specific,
 			  $uptime, $varbind_list_ref);
-   } elsif  (($this->{Version} eq '2')|| ($this->{Version} eq '2c')) {
+   } elsif ($this->{Version} =~ '^[23]') {
        my $trap_oid = $param{oid} || $param{trapoid} || '.0.0';
        my $uptime = $param{uptime} || SNMP::_sys_uptime();
        @res = SNMP::_trapV2($this, $uptime, $trap_oid, $varbind_list_ref);

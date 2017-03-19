@@ -438,6 +438,7 @@ sc_generate_keyed_hash(const oid * authtype, size_t authtypelen,
  * Returns:
  * SNMPERR_SUCCESS              Success.
  * SNMP_SC_GENERAL_FAILURE      Any error.
+ * SNMPERR_SC_NOT_CONFIGURED    Hash type not supported.
  */
 int
 sc_hash(const oid * hashtype, size_t hashtypelen, const u_char * buf,
@@ -495,7 +496,10 @@ sc_hash(const oid * hashtype, size_t hashtypelen, const u_char * buf,
     EVP_MD_CTX_init(cptr);
 #endif
 #endif
-    EVP_DigestInit(cptr, hashfn);
+    if (!EVP_DigestInit(cptr, hashfn)) {
+        /* requested hash function is not available */
+        return SNMPERR_SC_NOT_CONFIGURED;
+    }
 
 /** pass the data */
     EVP_DigestUpdate(cptr, buf, buf_len);
@@ -1211,7 +1215,7 @@ MD5_hmac(const u_char * data, size_t len, u_char * mac, size_t maclen,
          * this relies on the ability to use integer math and thus we
          * must rely on data that aligns on 32-bit-word-boundries 
          */
-        memdup(&newdata, data, len);
+        newdata = netsnmp_memdup(data, len);
         cp = newdata;
     } else {
         cp = data;
@@ -1309,7 +1313,7 @@ SHA1_hmac(const u_char * data, size_t len, u_char * mac, size_t maclen,
          * this relies on the ability to use integer math and thus we
          * must rely on data that aligns on 32-bit-word-boundries 
          */
-        memdup(&newdata, data, len);
+        newdata = netsnmp_memdup(data, len);
         cp = newdata;
     } else {
         cp = data;
