@@ -1352,7 +1352,13 @@
 
 #ifdef __MINGW32__
 /* got ssize_t? */
-#define HAVE_SSIZE_T
+# define HAVE_SSIZE_T
+#elif defined(_MSC_VER)
+# ifdef _M_X64
+typedef __int64 ssize_t;
+# else
+typedef __int32 ssize_t;
+# endif
 #endif
 
 /* If you have openssl 0.9.7 or above, you likely have AES support. */
@@ -1644,7 +1650,7 @@ enum {
 #if defined(_MSC_VER) && _MSC_VER < 1500
 #define vsnprintf _vsnprintf
 #endif
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf  _snprintf
 #endif
 
