@@ -1011,7 +1011,9 @@
 
 /* Define as `__inline' if that's what the C compiler calls it, or to nothing
    if it is not supported. */
+#ifndef PHP_WIN32
 #define inline __inline
+#endif
 
 /* Define to `long' if <sys/types.h> does not define. */
 /* #undef off_t */
