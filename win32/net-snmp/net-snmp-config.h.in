@@ -1738,10 +1738,9 @@ enum {
 #endif
 
 #ifdef _MSC_VER
-/* Windows Vista and higher have inet_ntop but older Windows does not.
- * We'll use the Net-SNMP version instead. */
-#undef HAVE_INET_NTOP
-#undef HAVE_INET_PTON
+/* Windows Vista and higher have inet_ntop, and we don't support older Windows. */
+#define HAVE_INET_NTOP 1
+#define HAVE_INET_PTON 1
 
 /* IPv6 transports */
 #ifdef NETSNMP_ENABLE_IPV6
