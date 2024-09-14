@@ -36,6 +36,12 @@ extern          "C" {
                                  u_char * Kul, size_t * kul_len);
 
     NETSNMP_IMPORT
+    int netsnmp_extend_kul(u_int needKeyLen, oid *hashoid, u_int hashoid_len,
+                           int privType, u_char *engineID, u_int engineIDLen,
+                           u_char **kulBuf, size_t *kulBufLen,
+                           u_int kulBufSize);
+
+    NETSNMP_IMPORT
     int             encode_keychange(const oid * hashtype,
                                      u_int hashtype_len, u_char * oldkey,
                                      size_t oldkey_len, u_char * newkey,
@@ -43,11 +49,11 @@ extern          "C" {
                                      size_t * kcstring_len);
 
     NETSNMP_IMPORT
-    int             decode_keychange(const oid * hashtype,
-                                     u_int hashtype_len, u_char * oldkey,
-                                     size_t oldkey_len, u_char * kcstring,
-                                     size_t kcstring_len, u_char * newkey,
-                                     size_t * newkey_len);
+    int             decode_keychange(const oid *hashtype, u_int hashtype_len,
+                                     const u_char *oldkey, size_t oldkey_len,
+                                     const u_char *kcstring,
+                                     size_t kcstring_len, u_char *newkey,
+                                     size_t *newkey_len);
 
 
     /*

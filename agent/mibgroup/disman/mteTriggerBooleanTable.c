@@ -8,10 +8,10 @@
  * This should always be included first before anything else 
  */
 #include <net-snmp/net-snmp-config.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -107,12 +107,6 @@ struct variable2 mteTriggerBooleanTable_variables[] = {
 /*
  * (L = length of the oidsuffix) 
  */
-
-
-/*
- * global storage of our data, saved in and configured by header_complex() 
- */
-extern struct header_complex_index *mteTriggerTableStorage;
 
 
 /*

@@ -6,22 +6,22 @@
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 
-netsnmp_feature_require(watcher_spinlock)
+netsnmp_feature_require(watcher_spinlock);
 
 
 #include "setSerialNo.h"
 
 /*
  * A watched spinlock can be fully implemented by the spinlock helper,
- *  but we still need a suitable variable to hold the value.
+ * but we still need a suitable variable to hold the value.
  */
 static int     setserialno;
 
-    /*
-     * TestAndIncr values should persist across agent restarts,
-     * so we need config handling routines to load and save the
-     * current value (incrementing this whenever it's loaded).
-     */
+/*
+ * TestAndIncr values should persist across agent restarts,
+ * so we need config handling routines to load and save the
+ * current value (incrementing this whenever it's loaded).
+ */
 static void
 setserial_parse_config( const char *token, char *cptr )
 {
@@ -42,18 +42,15 @@ setserial_store_config( int a, int b, void *c, void *d )
 void
 init_setSerialNo(void)
 {
-    oid set_serial_oid[] = { 1, 3, 6, 1, 6, 3, 1, 1, 6, 1 };
+    static const oid set_serial_oid[] = { 1, 3, 6, 1, 6, 3, 1, 1, 6, 1 };
+    int mode;
 
     /*
      * If we can't retain the TestAndIncr value across an agent restart,
      *  then it should be initialised to a pseudo-random value.  So set it
      *  as such, before registering the config handlers to override this.
      */
-#ifdef SVR4
-    setserialno = lrand48();
-#else
-    setserialno = random();
-#endif
+    setserialno = netsnmp_random();
     DEBUGMSGTL(("snmpSetSerialNo",
                 "Initalizing SnmpSetSerialNo to %d\n", setserialno));
     snmpd_register_config_handler("setserialno", setserial_parse_config,
@@ -65,20 +62,14 @@ init_setSerialNo(void)
      * Register 'setserialno' as a watched spinlock object
      */
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-    netsnmp_register_watched_spinlock(
-        netsnmp_create_handler_registration("snmpSetSerialNo", NULL,
-                                   set_serial_oid,
-                                   OID_LENGTH(set_serial_oid),
-                                   HANDLER_CAN_RWRITE),
-                                       &setserialno );
+    mode = HANDLER_CAN_RWRITE;
 #else  /* !NETSNMP_NO_WRITE_SUPPORT */
+    mode = HANDLER_CAN_RONLY;
+#endif /* !NETSNMP_NO_WRITE_SUPPORT */
     netsnmp_register_watched_spinlock(
         netsnmp_create_handler_registration("snmpSetSerialNo", NULL,
-                                   set_serial_oid,
-                                   OID_LENGTH(set_serial_oid),
-                                   HANDLER_CAN_RONLY),
-                                       &setserialno );
-#endif /* !NETSNMP_NO_WRITE_SUPPORT */
+                                   set_serial_oid, OID_LENGTH(set_serial_oid),
+                                   mode), &setserialno);
     DEBUGMSGTL(("scalar_int", "Done initalizing example scalar int\n"));
 }
 

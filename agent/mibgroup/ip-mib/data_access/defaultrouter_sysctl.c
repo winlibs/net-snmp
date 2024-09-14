@@ -10,6 +10,7 @@
 #include <net-snmp/data_access/defaultrouter.h>
 
 #include "ip-mib/ipDefaultRouterTable/ipDefaultRouterTable.h"
+#include "defaultrouter_private.h"
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -162,7 +163,7 @@ _load_defaultrouter_from_sysctl(netsnmp_container *container, int family)
     lim = buf + needed;
     for (next = buf; next < lim; next += rtm->rtm_msglen) {
 #ifdef NETSNMP_ENABLE_IPV6
-	struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
+	struct in6_addr in6addr_any = { } /*IN6ADDR_ANY_INIT*/;
 #endif
 
         rtm = (struct rt_msghdr *)next;

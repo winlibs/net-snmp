@@ -50,14 +50,14 @@
 
 #include <ctype.h>
 
-netsnmp_feature_child_of(ifXTable_external_access, libnetsnmpmibs)
+netsnmp_feature_child_of(ifXTable_external_access, libnetsnmpmibs);
 
-netsnmp_feature_require(row_merge)
-netsnmp_feature_require(cache_find_by_oid)
-netsnmp_feature_require(baby_steps)
-netsnmp_feature_require(check_all_requests_error)
+netsnmp_feature_require(row_merge);
+netsnmp_feature_require(cache_find_by_oid);
+netsnmp_feature_require(baby_steps);
+netsnmp_feature_require(check_all_requests_error);
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-netsnmp_feature_require(check_vb_type_and_max_size)
+netsnmp_feature_require(check_vb_type_and_max_size);
 #endif /* NETSNMP_NO_WRITE_SUPPORT */
 
 /**********************************************************************
@@ -729,72 +729,72 @@ _ifXTable_get_column(ifXTable_rowreq_ctx * rowreq_ctx,
          * ifHCInOctets(6)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCINOCTETS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCInOctets_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCInOctets_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
          * ifHCInUcastPkts(7)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCINUCASTPKTS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCInUcastPkts_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCInUcastPkts_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
          * ifHCInMulticastPkts(8)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCINMULTICASTPKTS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCInMulticastPkts_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCInMulticastPkts_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
          * ifHCInBroadcastPkts(9)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCINBROADCASTPKTS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCInBroadcastPkts_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCInBroadcastPkts_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
          * ifHCOutOctets(10)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCOUTOCTETS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCOutOctets_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCOutOctets_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
          * ifHCOutUcastPkts(11)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCOUTUCASTPKTS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCOutUcastPkts_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCOutUcastPkts_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
          * ifHCOutMulticastPkts(12)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCOUTMULTICASTPKTS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCOutMulticastPkts_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCOutMulticastPkts_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
          * ifHCOutBroadcastPkts(13)/COUNTER64/ASN_COUNTER64/U64(U64)//l/A/w/e/r/d/h 
          */
     case COLUMN_IFHCOUTBROADCASTPKTS:
-        var->val_len = sizeof(U64);
+        var->val_len = sizeof(struct counter64);
         var->type = ASN_COUNTER64;
-        rc = ifHCOutBroadcastPkts_get(rowreq_ctx, (U64 *) var->val.string);
+        rc = ifHCOutBroadcastPkts_get(rowreq_ctx, (struct counter64 *) var->val.string);
         break;
 
         /*
@@ -921,7 +921,7 @@ _mfd_ifXTable_get_values(netsnmp_mib_handler *handler,
 
         /*
          * if the buffer wasn't used previously for the old data (i.e. it
-         * was allcoated memory)  and the get routine replaced the pointer,
+         * was allocated memory)  and the get routine replaced the pointer,
          * we need to free the previous pointer.
          */
         if (old_string && (old_string != requests->requestvb->buf) &&
@@ -1144,9 +1144,7 @@ _ifXTable_check_column(ifXTable_rowreq_ctx * rowreq_ctx,
         /*
          * check defined range(s). 
          */
-        if ((SNMPERR_SUCCESS == rc)
-            && ((var->val_len < 0) || (var->val_len > 64))
-            ) {
+        if (rc == SNMPERR_SUCCESS && var->val_len > 64) {
             rc = SNMP_ERR_WRONGLENGTH;
         }
         if (SNMPERR_SUCCESS != rc) {
@@ -1799,8 +1797,7 @@ static int      _ifXTable_container_save_rows(int majorID, int minorID,
                                               void *clientarg);
 static void     _ifXTable_container_row_restore(const char *token,
                                                 char *buf);
-static int      _ifXTable_container_row_save(ifXTable_rowreq_ctx *
-                                             rowreq_ctx, void *type);
+static void     _ifXTable_container_row_save(void *data, void *type);
 static char    *_ifXTable_container_col_restore(ifXTable_rowreq_ctx *
                                                 rowreq_ctx, u_int col,
                                                 char *buf);
@@ -1856,7 +1853,6 @@ _ifXTable_container_save_rows(int majorID, int minorID, void *serverarg,
      * save all rows
      */
     CONTAINER_FOR_EACH(*(netsnmp_container **)clientarg,
-                       (netsnmp_container_obj_func *)
                        _ifXTable_container_row_save, type);
 
     read_config_store((char *) type, sep);
@@ -1873,9 +1869,10 @@ _ifXTable_container_save_rows(int majorID, int minorID, void *serverarg,
 /************************************************************
  * _ifXTable_container_row_save
  */
-static int
-_ifXTable_container_row_save(ifXTable_rowreq_ctx * rowreq_ctx, void *type)
+static void _ifXTable_container_row_save(void *data, void *type)
 {
+    ifXTable_rowreq_ctx *rowreq_ctx = data;
+
     /*
      * Allocate space for a line with all data for a row. An
      * attempt is made to come up with a default maximum size, but
@@ -1918,7 +1915,7 @@ _ifXTable_container_row_save(ifXTable_rowreq_ctx * rowreq_ctx, void *type)
     int             i;
 
     if (ifXTable_container_should_save(rowreq_ctx) == 0) {
-        return SNMP_ERR_NOERROR;
+        return;
     }
 
     /*
@@ -1930,13 +1927,13 @@ _ifXTable_container_row_save(ifXTable_rowreq_ctx * rowreq_ctx, void *type)
     if (NULL == pos) {
         snmp_log(LOG_ERR, "error saving ifXTable row "
                  "to persistent file\n");
-        return SNMP_ERR_GENERR;
+        return;
     }
     *pos++ = ' ';
     if (pos > max) {
         snmp_log(LOG_ERR, "error saving ifXTable row "
                  "to persistent file (too long)\n");
-        return SNMP_ERR_GENERR;
+        return;
     }
 
     /*
@@ -1956,7 +1953,7 @@ _ifXTable_container_row_save(ifXTable_rowreq_ctx * rowreq_ctx, void *type)
         if (pos > max) {
             snmp_log(LOG_ERR, "error saving ifXTable row "
                      "to persistent file (too long)\n");
-            return SNMP_ERR_GENERR;
+            return;
         }
     }
 
@@ -1972,14 +1969,12 @@ _ifXTable_container_row_save(ifXTable_rowreq_ctx * rowreq_ctx, void *type)
     if (pos > max) {
         snmp_log(LOG_ERR, "error saving ifXTable row "
                  "to persistent file (too long)\n");
-        return SNMP_ERR_GENERR;
+        return;
     }
     read_config_store((char *) type, buf);
 
     DEBUGMSGTL(("internal:ifXTable:_ifXTable_container_row_save",
                 "saving line '%s'\n", buf));
-
-    return SNMP_ERR_NOERROR;
 }
 
 static void

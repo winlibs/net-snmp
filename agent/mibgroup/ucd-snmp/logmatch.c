@@ -121,6 +121,9 @@ updateLogmatch(int iindex)
     struct stat     sb;
     char            lastFilename[256];
 
+    if (iindex >= MAXLOGMATCH)
+        return;
+
     /*
      * ------------------------------------ 
      * we can never be sure if this is the  
@@ -157,7 +160,7 @@ updateLogmatch(int iindex)
 
             pos = counter = ccounter = 0;
 
-            if (fscanf(perfile, "%lu %lu %lu %s",
+            if (fscanf(perfile, "%lu %lu %lu %255s",
                        &pos, &ccounter, &counter, lastFilename)) {
 
 
@@ -393,8 +396,9 @@ logmatch_parse_config(const char *token, char *cptr)
                logmatchTable[logmatchCount].regEx);
 
         /* fill in filename with initial data */
-        strcpy(logmatchTable[logmatchCount].filename,
-               logmatchTable[logmatchCount].filenamePattern);
+        strlcpy(logmatchTable[logmatchCount].filename,
+                logmatchTable[logmatchCount].filenamePattern,
+                sizeof(logmatchTable[logmatchCount].filename));
         logmatch_update_filename(logmatchTable[logmatchCount].filenamePattern,
                                  logmatchTable[logmatchCount].filename);
 
@@ -511,8 +515,8 @@ var_logmatch_table(struct variable *vp,
 {
     static long     long_ret;
     static char     message[1024];
-    int             iindex;
-    struct logmatchstat *logmatch;
+    int             iindex = 0;
+    struct logmatchstat *logmatch = NULL;
 
     if (vp->magic == LOGMATCH_INFO) {
         if (header_generic(vp, name, length, exact, var_len, write_method)
@@ -525,6 +529,8 @@ var_logmatch_table(struct variable *vp,
             return (NULL);
 
         iindex = name[*length - 1] - 1;
+        if (iindex >= MAXLOGMATCH)
+            return NULL;
         logmatch = &logmatchTable[iindex];
 
         if (logmatch->myRegexError == 0)
@@ -652,6 +658,13 @@ init_logmatch(void)
                                   logmatch_free_config,
                                   "logmatch name path cycletime regex");
 
+}
+
+#else /* HAVE_REGEX_H */
+
+void
+init_logmatch(void)
+{
 }
 
 #endif /* HAVE_REGEX_H */

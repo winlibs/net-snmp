@@ -15,16 +15,21 @@
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include "utilities/iquery.h"
 #include "alarmTable.h"
+#include "event.h"
 
-netsnmp_feature_require(iquery)
-netsnmp_feature_require(query_set_default_session)
-netsnmp_feature_require(table_tdata)
-netsnmp_feature_require(check_vb_type_and_max_size)
-netsnmp_feature_require(table_tdata_extract_table)
+netsnmp_feature_require(iquery);
+netsnmp_feature_require(query_set_default_session);
+netsnmp_feature_require(table_tdata);
+netsnmp_feature_require(check_vb_type_and_max_size);
+netsnmp_feature_require(table_tdata_extract_table);
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-netsnmp_feature_require(table_tdata_insert_row)
-netsnmp_feature_require(iquery_pdu_session)
+netsnmp_feature_require(table_tdata_insert_row);
+netsnmp_feature_require(iquery_pdu_session);
 #endif /* NETSNMP_NO_WRITE_SUPPORT */
+
+static netsnmp_tdata  *alarm_data;
+static netsnmp_table_registration_info *alarm_info;
+static netsnmp_handler_registration *alarm_reg;
 
 /** Initializes the alarmTable module */
 void
@@ -42,42 +47,37 @@ initialize_table_alarmTable(void)
 {
     static oid      alarmTable_oid[] = { 1, 3, 6, 1, 2, 1, 16, 3, 1 };
     size_t          alarmTable_oid_len = OID_LENGTH(alarmTable_oid);
-    netsnmp_handler_registration *reg;
-    netsnmp_tdata  *table_data;
-    netsnmp_table_registration_info *table_info;
 
     DEBUGMSGTL(( "rmon:alarmTable", "initialize_table_alarmTable called.\n"));
-    reg =
+    alarm_reg =
         netsnmp_create_handler_registration("alarmTable",
                                             alarmTable_handler,
                                             alarmTable_oid,
                                             alarmTable_oid_len,
                                             HANDLER_CAN_RWRITE);
 
-    table_data = netsnmp_tdata_create_table("alarmTable", 0);
-    table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
-    netsnmp_table_helper_add_indexes(table_info, ASN_INTEGER,   /* index: alarmIndex */
+    alarm_data = netsnmp_tdata_create_table("alarmTable", 0);
+    alarm_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
+    netsnmp_table_helper_add_indexes(alarm_info, ASN_INTEGER,   /* index: alarmIndex */
                                      0);
 
-    table_info->min_column = COLUMN_ALARMINDEX;
-    table_info->max_column = COLUMN_ALARMSTATUS;
+    alarm_info->min_column = COLUMN_ALARMINDEX;
+    alarm_info->max_column = COLUMN_ALARMSTATUS;
 
-    netsnmp_tdata_register(reg, table_data, table_info);
+    netsnmp_tdata_register(alarm_reg, alarm_data, alarm_info);
 
     /*
      * Initialise the contents of the table here 
      */
 }
 
-extern int
-event_api_send_alarm(u_char is_rising,
-                     u_long alarm_index,
-                     u_long event_index,
-                     oid * alarmed_var,
-                     size_t alarmed_var_length,
-                     u_long sample_type,
-                     u_long value,
-                     u_long the_threshold, const char *alarm_descr);
+
+void shutdown_alarmTable(void)
+{
+    netsnmp_tdata_unregister(alarm_reg);
+    netsnmp_table_registration_info_free(alarm_info);
+}
+
 
 #define ALARM_STR1_LEN	32
 typedef enum {
@@ -814,7 +814,7 @@ alarmTable_handler(netsnmp_mib_handler *handler,
                         netsnmp_query_set_default_session(sess);
                         DEBUGMSGTL(("rmon:alarmTable", "user name %s\n", secName));
                     } else { 
-                        snmp_log(LOG_ERR, "user name %s not found\n", secName);
+                        snmp_log(LOG_ERR, "user name not found\n");
                         config_perror("Unknown user name\n");
                     }
 

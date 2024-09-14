@@ -8,10 +8,10 @@
  * standard Net-SNMP includes 
  */
 #include <net-snmp/net-snmp-config.h>
+#include <net-snmp/library/openssl_config.h>
 #include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/library/snmp_openssl.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
-
-#include <openssl/dh.h>
 
 /*
  * include our parent header 
@@ -20,10 +20,12 @@
 #include "usmDHUserKeyTable.h"
 #include "snmp-usm-dh-objects-mib/usmDHParameters/usmDHParameters.h"
 
+
 DH             *
 usmDHGetUserDHptr(struct usmUser *user, int for_auth_key)
 {
     DH             *dh, *dh_params;
+    const BIGNUM   *g, *p;
     void          **theptr;
 
     if (user == NULL)
@@ -44,9 +46,10 @@ usmDHGetUserDHptr(struct usmUser *user, int for_auth_key)
         dh_params = get_dh_params();
         if (!dh_params)
             return NULL;
-        dh->g = BN_dup(dh_params->g);
-        dh->p = BN_dup(dh_params->p);
-        if (!dh->g || !dh->p)
+        DH_get0_pqg(dh_params, &p, NULL, &g);
+        DH_set0_pqg(dh, BN_dup(p), NULL, BN_dup(g));
+        DH_get0_pqg(dh, &p, NULL, &g);
+        if (!g || !p)
             return NULL;
         DH_generate_key(dh);
         *theptr = dh;
@@ -60,7 +63,8 @@ int
 usmDHGetUserKeyChange(struct usmUser *user, int for_auth_key,
                       u_char **keyobj, size_t *keyobj_len)
 {
-    DH             *dh;
+    DH             *dh = NULL;
+    const BIGNUM   *pub_key = NULL;
 
     dh = usmDHGetUserDHptr(user, for_auth_key);
 
@@ -70,9 +74,10 @@ usmDHGetUserKeyChange(struct usmUser *user, int for_auth_key,
         return MFD_ERROR;
     }
 
-    *keyobj_len = BN_num_bytes(dh->pub_key);
+    DH_get0_key(dh, &pub_key, NULL);
+    *keyobj_len = BN_num_bytes(pub_key);
     *keyobj = malloc(*keyobj_len);
-    BN_bn2bin(dh->pub_key, *keyobj);
+    BN_bn2bin(pub_key, *keyobj);
 
     return MFD_SUCCESS;
 }
@@ -125,13 +130,13 @@ usmDHUserKeyTable_allocate_data(void)
     if (NULL == rtn) {
         snmp_log(LOG_ERR, "unable to malloc memory for new "
                  "usmDHUserKeyTable_data.\n");
+    } else {
+        /*
+         * not real user, not in a list. mark for testing
+         */
+        rtn->next = (struct usmUser *) -1;
+        rtn->prev = (struct usmUser *) -1;
     }
-    /*
-     * not real user, not in a list. mark for testing
-     */
-    rtn->next = (struct usmUser *) -1;
-    rtn->prev = (struct usmUser *) -1;
-
     return rtn;
 }                               /* usmDHUserKeyTable_allocate_data */
 
@@ -151,15 +156,7 @@ usmDHUserKeyTable_release_data(usmDHUserKeyTable_data * data)
     netsnmp_assert(user->next == (struct usmUser *) -1);
     netsnmp_assert(user->prev == (struct usmUser *) -1);
 
-    /*
-     * TODO:202:r: |-> release memory for the usmDHUserKeyTable data context.
-     */
-    if (user) {
-        SNMP_FREE(user->authKey);
-        SNMP_FREE(user->privKey);
-    }
-
-    free(data);
+    usm_free_user(user);
 }                               /* usmDHUserKeyTable_release_data */
 
 
@@ -199,8 +196,7 @@ usmDHUserKeyTable_indexes_set_tbl_idx(usmDHUserKeyTable_mib_index *
     /*
      * make sure there is enough space for usmUserEngineID data
      */
-    if ((NULL == tbl_idx->usmUserEngineID) ||
-        (tbl_idx->usmUserEngineID_len < (usmUserEngineID_val_ptr_len))) {
+    if (tbl_idx->usmUserEngineID_len < usmUserEngineID_val_ptr_len) {
         snmp_log(LOG_ERR, "not enough space for value\n");
         return MFD_ERROR;
     }
@@ -218,8 +214,7 @@ usmDHUserKeyTable_indexes_set_tbl_idx(usmDHUserKeyTable_mib_index *
     /*
      * make sure there is enough space for usmUserName data
      */
-    if ((NULL == tbl_idx->usmUserName) ||
-        (tbl_idx->usmUserName_len < (usmUserName_val_ptr_len))) {
+    if (tbl_idx->usmUserName_len < usmUserName_val_ptr_len) {
         snmp_log(LOG_ERR, "not enough space for value\n");
         return MFD_ERROR;
     }

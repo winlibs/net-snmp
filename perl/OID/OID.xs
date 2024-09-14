@@ -1,7 +1,4 @@
 /* -*- C -*- */
-#if defined(_WIN32) && !defined(_WIN32_WINNT)
-#define _WIN32_WINNT 0x501
-#endif
 
 #include "EXTERN.h"
 #include "perl.h"
@@ -35,7 +32,7 @@ nso_newarrayptr(oid *name, size_t name_len)
     return RETVAL;
 }
 
-static int __sprint_num_objid _((char *, oid *, int));
+static int __snprint_num_objid _((char *, size_t, const oid *, int));
 
 /* stolen from SNMP.xs.  Ug, this needs merging to snmplib */
 /* XXX: this is only here because snmplib forces quotes around the
@@ -45,13 +42,8 @@ static int __sprint_num_objid _((char *, oid *, int));
 #define USE_ENUMS 1
 #define USE_SPRINT_VALUE 2
 static int
-__snprint_value (buf, buf_len, var, tp, type, flag)
-char * buf;
-size_t buf_len;
-netsnmp_variable_list * var;
-struct tree * tp;
-int type;
-int flag;
+__snprint_value(char *buf, size_t buf_len, netsnmp_variable_list *var,
+                struct tree *tp, int type, int flag)
 {
    int len = 0;
    u_char* ip;
@@ -104,8 +96,8 @@ int flag;
            break;
 
         case ASN_OBJECT_ID:
-          __sprint_num_objid(buf, (oid *)(var->val.objid),
-                             var->val_len/sizeof(oid));
+          __snprint_num_objid(buf, buf_len, var->val.objid,
+                              var->val_len / sizeof(oid));
           len = strlen(buf);
           break;
 
@@ -138,15 +130,18 @@ int flag;
 }
 
 static int
-__sprint_num_objid (buf, objid, len)
+__snprint_num_objid (buf, buf_len, objid, len)
 char *buf;
-oid *objid;
+size_t buf_len;
+const oid *objid;
 int len;
 {
+   const char *const end = buf + buf_len;
    int i;
+
    buf[0] = '\0';
    for (i=0; i < len; i++) {
-	sprintf(buf,".%" NETSNMP_PRIo "u",*objid++);
+        snprintf(buf, end - buf, ".%" NETSNMP_PRIo "u", *objid++);
 	buf += strlen(buf);
    }
    return SNMPERR_SUCCESS;
@@ -236,7 +231,7 @@ nsop_to_array(oid1)
         int i;
 
     PPCODE:
-        EXTEND(SP, oid1->len);
+        EXTEND(SP, (int)oid1->len);
         for(i=0; i < (int)oid1->len; i++) {
             PUSHs(sv_2mortal(newSVnv(oid1->name[i])));
         }
@@ -249,7 +244,7 @@ nsop_get_indexes(oid1)
         struct tree    *tp, *tpe, *tpnode, *indexnode;
         struct index_list *index;
         netsnmp_variable_list vbdata;
-        u_char         *buf = NULL;
+        char           *buf = NULL;
         size_t          buf_len = 256, out_len = 0;
         oid name[MAX_OID_LEN];
         size_t name_len = MAX_OID_LEN;
@@ -370,7 +365,7 @@ nsop_get_indexes(oid1)
                                      1, name, name_len, &vbdata);
 */
                 snmp_free_var_internals(&vbdata);
-                av_push(myret, newSVpv((char *)buf, out_len));
+                av_push(myret, newSVpv(buf, out_len));
             }
             netsnmp_free(buf);
             RETVAL = newRV((SV *)myret);

@@ -20,7 +20,7 @@
 
 #include "inetNetToMediaTable_data_access.h"
 
-netsnmp_feature_require(container_lifo)
+netsnmp_feature_require(container_lifo);
 static netsnmp_arp_access * arp_access = NULL;
 
 /** @ingroup interface 
@@ -309,7 +309,7 @@ inetNetToMediaTable_container_shutdown(netsnmp_container *container_ptr)
  *  While loading the data, the only important thing is the indexes.
  *  If access to your data is cheap/fast (e.g. you have a pointer to a
  *  structure in memory), it would make sense to update the data here.
- *  If, however, the accessing the data invovles more work (e.g. parsing
+ *  If, however, the accessing the data involves more work (e.g. parsing
  *  some other existing data, or peforming calculations to derive the data),
  *  then you can limit yourself to setting the indexes and saving any
  *  information you will need later. Then use the saved information in

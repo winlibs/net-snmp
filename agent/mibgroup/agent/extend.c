@@ -16,17 +16,19 @@
 #define SHELLCOMMAND 3
 #endif
 
-netsnmp_feature_require(extract_table_row_data)
-netsnmp_feature_require(table_data_delete_table)
+/*  This mib is potentially dangerous to turn on by default, since it
+ *  allows arbitrary commands to be set by anyone with SNMP WRITE
+ *  access to the MIB table.  If all of your users are "root" level
+ *  users, then it may be safe to turn on. */
+#define ENABLE_EXTEND_WRITE_ACCESS 0
+
+netsnmp_feature_require(extract_table_row_data);
+netsnmp_feature_require(table_data_delete_table);
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-netsnmp_feature_require(insert_table_row)
+netsnmp_feature_require(insert_table_row);
 #endif /* NETSNMP_NO_WRITE_SUPPORT */
 
 oid  ns_extend_oid[]    = { 1, 3, 6, 1, 4, 1, 8072, 1, 3, 2 };
-oid  extend_count_oid[] = { 1, 3, 6, 1, 4, 1, 8072, 1, 3, 2, 1 };
-oid  extend_config_oid[] = { 1, 3, 6, 1, 4, 1, 8072, 1, 3, 2, 2 };
-oid  extend_out1_oid[]  = { 1, 3, 6, 1, 4, 1, 8072, 1, 3, 2, 3 };
-oid  extend_out2_oid[]  = { 1, 3, 6, 1, 4, 1, 8072, 1, 3, 2, 4 };
 
 typedef struct extend_registration_block_s {
     netsnmp_table_data *dinfo;
@@ -258,6 +260,10 @@ _unregister_extend(extend_registration_block *eptr)
     }
 
     netsnmp_table_data_delete_table(eptr->dinfo);
+    netsnmp_unregister_handler( eptr->reg[0] );
+    netsnmp_unregister_handler( eptr->reg[1] );
+    netsnmp_unregister_handler( eptr->reg[2] );
+    netsnmp_unregister_handler( eptr->reg[3] );
     free(eptr->root_oid);
     free(eptr);
 }
@@ -270,11 +276,14 @@ extend_clear_callback(int majorID, int minorID,
 
     for ( eptr=ereg_head; eptr; eptr=enext ) {
         enext=eptr->next;
+        netsnmp_table_data_delete_table(eptr->dinfo);
         netsnmp_unregister_handler( eptr->reg[0] );
         netsnmp_unregister_handler( eptr->reg[1] );
         netsnmp_unregister_handler( eptr->reg[2] );
         netsnmp_unregister_handler( eptr->reg[3] );
-        SNMP_FREE(eptr);
+        if (eptr->root_oid)
+            free(eptr->root_oid);
+        free(eptr);
     }
     ereg_head = NULL;
     return 0;
@@ -352,8 +361,8 @@ extend_load_cache(netsnmp_cache *cache, void *magic)
         ret = run_exec_command(  cmd_buf, extension->input, out_buf, &out_len);
     DEBUGMSG(( "nsExtendTable:cache", ": %s : %d\n", cmd_buf, ret));
     if (ret >= 0) {
-        if (out_buf[   out_len-1 ] == '\n')
-            out_buf[ --out_len   ] =  '\0';	/* Stomp on trailing newline */
+        if (out_len > 0 && out_buf[out_len - 1] == '\n')
+            out_buf[--out_len] = '\0';	/* Strip trailing newline */
         extension->output   = strdup( out_buf );
         extension->out_len  = out_len;
         /*
@@ -522,8 +531,28 @@ extend_parse_config(const char *token, char *cptr)
     size_t oid_len;
     extend_registration_block *eptr;
     int  flags;
+    int cache_timeout = 0;
+    int exec_type = NS_EXTEND_ETYPE_EXEC;
 
-    cptr = copy_nword(cptr, exec_name,    sizeof(exec_name));
+    cptr = copy_nword(cptr, exec_name, sizeof(exec_name));
+    if (strcmp(exec_name, "-cacheTime") == 0) {
+        char cache_timeout_str[32];
+
+        cptr = copy_nword(cptr, cache_timeout_str, sizeof(cache_timeout_str));
+        /* If atoi can't do the conversion, it returns 0 */
+        cache_timeout = atoi(cache_timeout_str);
+        cptr = copy_nword(cptr, exec_name, sizeof(exec_name));
+    }
+    if (strcmp(exec_name, "-execType") == 0) {
+        char exec_type_str[16];
+
+        cptr = copy_nword(cptr, exec_type_str, sizeof(exec_type_str));
+        if (strcmp(exec_type_str, "sh") == 0)
+            exec_type = NS_EXTEND_ETYPE_SHELL;
+        else
+            exec_type = NS_EXTEND_ETYPE_EXEC;
+        cptr = copy_nword(cptr, exec_name, sizeof(exec_name));
+    }
     if ( *exec_name == '.' ) {
         oid_len = MAX_OID_LEN - 2;
         if (0 == read_objid( exec_name, oid_buf, &oid_len )) {
@@ -545,13 +574,18 @@ extend_parse_config(const char *token, char *cptr)
     flags = (NS_EXTEND_FLAGS_ACTIVE | NS_EXTEND_FLAGS_CONFIG);
     if (!strcmp( token, "sh"        ) ||
         !strcmp( token, "extend-sh" ) ||
-        !strcmp( token, "sh2" ))
+        !strcmp( token, "sh2") ||
+        exec_type == NS_EXTEND_ETYPE_SHELL)
         flags |= NS_EXTEND_FLAGS_SHELL;
     if (!strcmp( token, "execFix"   ) ||
         !strcmp( token, "extendfix" ) ||
         !strcmp( token, "execFix2" )) {
-        strcpy( exec_name2, exec_name );
-        strcat( exec_name, "Fix" );
+        strlcpy(exec_name2, exec_name, sizeof(exec_name2));
+        if (snprintf(exec_name, sizeof(exec_name), "%sFix", exec_name2) >=
+            sizeof(exec_name)) {
+            config_perror("ERROR: argument too long");
+            return;
+        }
         flags |= NS_EXTEND_FLAGS_WRITEABLE;
         /* XXX - Check for shell... */
     }
@@ -566,6 +600,8 @@ extend_parse_config(const char *token, char *cptr)
         extension->command  = strdup( exec_command );
         if (cptr)
             extension->args = strdup( cptr );
+        if (cache_timeout != 0)
+            extension->cache->timeout = cache_timeout;
     } else {
         snmp_log(LOG_ERR, "Failed to register extend entry '%s' - possibly duplicate name.\n", exec_name );
         return;
@@ -627,9 +663,9 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
     netsnmp_request_info       *request;
     netsnmp_table_request_info *table_info;
     netsnmp_extend             *extension;
-    extend_registration_block  *eptr;
+    extend_registration_block  *eptr NETSNMP_ATTRIBUTE_UNUSED;
     int  i;
-    int  need_to_validate = 0;
+    int  need_to_validate NETSNMP_ATTRIBUTE_UNUSED = 0;
 
     for ( request=requests; request; request=request->next ) {
         if (request->processed)
@@ -723,7 +759,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
          *
          **********/
 
-#ifndef NETSNMP_NO_WRITE_SUPPORT
+#if !defined(NETSNMP_NO_WRITE_SUPPORT) && ENABLE_EXTEND_WRITE_ACCESS
         case MODE_SET_RESERVE1:
             /*
              * Validate the new assignments
@@ -1049,7 +1085,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
                 }
             }
             break;
-#endif /* !NETSNMP_NO_WRITE_SUPPORT */ 
+#endif /* !NETSNMP_NO_WRITE_SUPPORT and ENABLE_EXTEND_WRITE_ACCESS */
 
         default:
             netsnmp_set_request_error(reqinfo, request, SNMP_ERR_GENERR);
@@ -1057,7 +1093,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
         }
     }
 
-#ifndef NETSNMP_NO_WRITE_SUPPORT
+#if !defined(NETSNMP_NO_WRITE_SUPPORT) && ENABLE_EXTEND_WRITE_ACCESS
     /*
      * If we're marking a given row as active,
      *  then we need to check that it's ready.
@@ -1082,7 +1118,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
             }
         }
     }
-#endif /* !NETSNMP_NO_WRITE_SUPPORT */
+#endif /* !NETSNMP_NO_WRITE_SUPPORT && ENABLE_EXTEND_WRITE_ACCESS */
     
     return SNMP_ERR_NOERROR;
 }
@@ -1507,52 +1543,49 @@ var_extensible_old(struct variable * vp,
     idx = name[*length-1] -1;
 	if (idx > max_compatability_entries)
 		return NULL;
-    exten = &compatability_entries[ idx ];
-    if (exten) {
-        switch (vp->magic) {
-        case MIBINDEX:
-            long_ret = name[*length - 1];
-            return ((u_char *) (&long_ret));
-        case ERRORNAME:        /* name defined in config file */
-            *var_len = strlen(exten->exec_entry->token);
-            return ((u_char *) (exten->exec_entry->token));
-        case SHELLCOMMAND:
-            cmdline = _get_cmdline(exten->exec_entry);
+    exten = &compatability_entries[idx];
+    switch (vp->magic) {
+    case MIBINDEX:
+        long_ret = name[*length - 1];
+        return (u_char *) &long_ret;
+    case ERRORNAME:        /* name defined in config file */
+        *var_len = strlen(exten->exec_entry->token);
+        return ((u_char *) (exten->exec_entry->token));
+    case SHELLCOMMAND:
+        cmdline = _get_cmdline(exten->exec_entry);
+        if (cmdline)
+            *var_len = strlen(cmdline);
+        return (u_char *) cmdline;
+    case ERRORFLAG:        /* return code from the process */
+        netsnmp_cache_check_and_reload( exten->exec_entry->cache );
+        long_ret = exten->exec_entry->result;
+        return (u_char *) &long_ret;
+    case ERRORMSG:         /* first line of text returned from the process */
+        netsnmp_cache_check_and_reload( exten->exec_entry->cache );
+        if (exten->exec_entry->numlines > 1) {
+            *var_len = (exten->exec_entry->lines[1])-
+                (exten->exec_entry->output) -1;
+        } else if (exten->exec_entry->output) {
+            *var_len = strlen(exten->exec_entry->output);
+        } else {
+            *var_len = 0;
+        }
+        return (u_char *) exten->exec_entry->output;
+    case ERRORFIX:
+        *write_method = fixExec2Error;
+        long_return = 0;
+        return (u_char *) &long_return;
+
+    case ERRORFIXCMD:
+        if (exten->efix_entry) {
+            cmdline = _get_cmdline(exten->efix_entry);
             if (cmdline)
                 *var_len = strlen(cmdline);
-            return ((u_char *) cmdline);
-        case ERRORFLAG:        /* return code from the process */
-            netsnmp_cache_check_and_reload( exten->exec_entry->cache );
-            long_ret = exten->exec_entry->result;
-            return ((u_char *) (&long_ret));
-        case ERRORMSG:         /* first line of text returned from the process */
-            netsnmp_cache_check_and_reload( exten->exec_entry->cache );
-            if (exten->exec_entry->numlines > 1) {
-                *var_len = (exten->exec_entry->lines[1])-
-                           (exten->exec_entry->output) -1;
-            } else if (exten->exec_entry->output) {
-                *var_len = strlen(exten->exec_entry->output);
-            } else {
-                *var_len = 0;
-            }
-            return ((u_char *) (exten->exec_entry->output));
-        case ERRORFIX:
-            *write_method = fixExec2Error;
-            long_return = 0;
-            return ((u_char *) &long_return);
-
-        case ERRORFIXCMD:
-            if (exten->efix_entry) {
-                cmdline = _get_cmdline(exten->efix_entry);
-		if (cmdline)
-                    *var_len = strlen(cmdline);
-                return ((u_char *) cmdline);
-            } else {
-                *var_len = 0;
-                return ((u_char *) &long_return);  /* Just needs to be non-null! */
-            }
+            return (u_char *) cmdline;
+        } else {
+            *var_len = 0;
+            return (u_char *) &long_return;  /* Just needs to be non-null! */
         }
-        return NULL;
     }
     return NULL;
 }
@@ -1565,13 +1598,10 @@ fixExec2Error(int action,
              size_t var_val_len,
              u_char * statP, oid * name, size_t name_len)
 {
-    netsnmp_old_extend *exten = NULL;
-    unsigned int idx;
+#if !defined(NETSNMP_NO_WRITE_SUPPORT) && ENABLE_EXTEND_WRITE_ACCESS
+    unsigned int idx = name[name_len - 1] - 1;
+    const netsnmp_old_extend *exten = &compatability_entries[idx];
 
-    idx = name[name_len-1] -1;
-    exten = &compatability_entries[ idx ];
-
-#ifndef NETSNMP_NO_WRITE_SUPPORT
     switch (action) {
     case MODE_SET_RESERVE1:
         if (var_val_type != ASN_INTEGER) {
@@ -1592,7 +1622,7 @@ fixExec2Error(int action,
     case MODE_SET_COMMIT:
         netsnmp_cache_check_and_reload( exten->efix_entry->cache );
     }
-#endif /* !NETSNMP_NO_WRITE_SUPPORT */
+#endif /* !NETSNMP_NO_WRITE_SUPPORT && ENABLE_EXTEND_WRITE_ACCESS */
     return SNMP_ERR_NOERROR;
 }
 #endif /* USING_UCD_SNMP_EXTENSIBLE_MODULE */

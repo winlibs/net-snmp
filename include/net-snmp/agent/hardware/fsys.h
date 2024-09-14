@@ -33,14 +33,15 @@ typedef struct netsnmp_fsys_info_s netsnmp_fsys_info;
    /*
     * Additional enumerationis - not listed in that MIB
     */
-#define NETSNMP_FS_TYPE_IGNORE	   1 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT
+#define NETSNMP_FS_TYPE_IGNORE	   (1 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT)
 
-#define NETSNMP_FS_TYPE_PROC	   2 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT
+#define NETSNMP_FS_TYPE_PROC	   (2 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT)
 
-#define NETSNMP_FS_TYPE_DEVPTS	   3 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT
-#define NETSNMP_FS_TYPE_SYSFS	   4 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT
-#define NETSNMP_FS_TYPE_TMPFS	   5 | _NETSNMP_FS_TYPE_LOCAL
-#define NETSNMP_FS_TYPE_USBFS	   6 | _NETSNMP_FS_TYPE_LOCAL
+#define NETSNMP_FS_TYPE_DEVPTS	   (3 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT)
+#define NETSNMP_FS_TYPE_SYSFS	   (4 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT)
+#define NETSNMP_FS_TYPE_TMPFS	   (5 | _NETSNMP_FS_TYPE_LOCAL)
+#define NETSNMP_FS_TYPE_USBFS	   (6 | _NETSNMP_FS_TYPE_LOCAL)
+#define NETSNMP_FS_TYPE_AUTOFS	   (7 | _NETSNMP_FS_TYPE_LOCAL | _NETSNMP_FS_TYPE_SKIP_BIT)
 
 #define NETSNMP_FS_FLAG_ACTIVE   0x01
 #define NETSNMP_FS_FLAG_REMOTE   0x02
@@ -87,9 +88,7 @@ struct netsnmp_fsys_info_s {
      * Possibly not all needed ??
      */
 netsnmp_fsys_info *netsnmp_fsys_get_first( void );
-netsnmp_fsys_info *netsnmp_fsys_get_next( netsnmp_fsys_info* );
-netsnmp_fsys_info *netsnmp_fsys_get_byIdx(  int,   int );
-netsnmp_fsys_info *netsnmp_fsys_get_next_byIdx(int,int );
+netsnmp_fsys_info *netsnmp_fsys_get_next(const netsnmp_fsys_info *);
 
 netsnmp_fsys_info *netsnmp_fsys_by_device(  char*, int );
 netsnmp_fsys_info *netsnmp_fsys_by_path(    char*, int );
@@ -98,12 +97,12 @@ netsnmp_cache *netsnmp_fsys_get_cache( void );
 int  netsnmp_fsys_load( netsnmp_cache *cache, void *data );
 void netsnmp_fsys_free( netsnmp_cache *cache, void *data );
 
-int netsnmp_fsys_size( netsnmp_fsys_info* );
-int netsnmp_fsys_used( netsnmp_fsys_info* );
-int netsnmp_fsys_avail(netsnmp_fsys_info* );
+int netsnmp_fsys_size(const netsnmp_fsys_info*);
+int netsnmp_fsys_used(const netsnmp_fsys_info*);
+int netsnmp_fsys_avail(const netsnmp_fsys_info*);
 
-unsigned long long netsnmp_fsys_size_ull( netsnmp_fsys_info* );
-unsigned long long netsnmp_fsys_used_ull( netsnmp_fsys_info* );
-unsigned long long netsnmp_fsys_avail_ull(netsnmp_fsys_info* );
+unsigned long long netsnmp_fsys_size_ull(const netsnmp_fsys_info*);
+unsigned long long netsnmp_fsys_used_ull(const netsnmp_fsys_info*);
+unsigned long long netsnmp_fsys_avail_ull(const netsnmp_fsys_info*);
 
 void netsnmp_fsys_calculate32( netsnmp_fsys_info *f);

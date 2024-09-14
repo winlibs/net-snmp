@@ -15,12 +15,12 @@
 
 #include <net-snmp/net-snmp-config.h>
 #include <fcntl.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <errno.h>
@@ -65,8 +65,6 @@ static void     Save_HR_Partition(int, int);
 
 static void     Init_HR_Partition(void);
 static int      Get_Next_HR_Partition(void);
-int             header_hrpartition(struct variable *, oid *, size_t *, int,
-                                   size_t *, WriteMethod **);
 
 
 #define	HRPART_INDEX		1

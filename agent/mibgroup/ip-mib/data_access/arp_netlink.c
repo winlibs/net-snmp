@@ -1,6 +1,7 @@
 /*
  *  Interface MIB architecture support
  */
+
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-includes.h>
 
@@ -9,7 +10,11 @@
 #include <net-snmp/data_access/interface.h>
 
 #include <errno.h>
+#include <stdint.h>
 #include <sys/types.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 #include <linux/types.h>
 #include <linux/rtnetlink.h>
 
@@ -78,7 +83,7 @@ int netsnmp_access_arp_load(netsnmp_arp_access *access)
 
         fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
         if (fd < 0) {
-            snmp_log(LOG_ERR,"netsnmp_access_arp_load: netlink socket create error\n");
+            snmp_log_perror("netsnmp_access_arp_load: netlink socket create error");
             return -1;
         }
         access->arch_magic = (void *)(uintptr_t)fd;
@@ -87,7 +92,7 @@ int netsnmp_access_arp_load(netsnmp_arp_access *access)
         sa.nl_family = AF_NETLINK;
         sa.nl_groups = RTMGRP_NEIGH;
         if (bind(fd, (struct sockaddr*) &sa, sizeof(sa)) < 0) {
-            snmp_log(LOG_ERR,"netsnmp_access_arp_load: netlink bind failed\n");
+            snmp_log_perror("netsnmp_access_arp_load: netlink bind failed");
             return -1;
         }
 
@@ -109,7 +114,7 @@ int netsnmp_access_arp_load(netsnmp_arp_access *access)
 
     r = send(fd, &req, req.n.nlmsg_len, 0);
     if (r < 0) {
-        snmp_log(LOG_ERR,"netsnmp_access_arp_refresh: send failed\n");
+        snmp_log_perror("netsnmp_access_arp_refresh: send failed");
         return -1;
     }
 
@@ -157,7 +162,7 @@ static void netsnmp_access_arp_read_netlink(int fd, void *data)
 		*access->cache_expired = 1;
             return;
         }
-    } while (0);
+    } while (r < 0 && errno == EINTR);
     len = r;
 
     for (h = (struct nlmsghdr *) buf; NLMSG_OK(h, len); h = NLMSG_NEXT(h, len)) {
@@ -210,6 +215,14 @@ fillup_entry_info(netsnmp_arp_entry *entry, struct nlmsghdr *nlmp)
         DEBUGMSGTL(("access:netlink:arp",
                     "Wrong Netlink message type %d\n", nlmp->nlmsg_type));
         return -1;
+    }
+
+    if (rtmp->ndm_family != AF_INET && rtmp->ndm_family != AF_INET6) {
+        /* Some address families, notably AF_BRIDGE, have RTM_NEWNEIGH
+         * and RTM_DELNEIGH messages that may not contain an IP address
+         * that we need later. So we drop everything that is not AF_INET or
+         * AF_INET6 silently.*/
+        return 0;
     }
 
     if (rtmp->ndm_state == NUD_NOARP) {

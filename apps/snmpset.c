@@ -25,40 +25,40 @@ SOFTWARE.
 ******************************************************************/
 #include <net-snmp/net-snmp-config.h>
 
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 #include <sys/types.h>
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 #include <stdio.h>
 #include <ctype.h>
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_SYS_SELECT_H
+#ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
@@ -127,7 +127,9 @@ main(int argc, char *argv[])
     size_t          name_length;
     int             status;
     int             failures = 0;
-    int             exitval = 0;
+    int             exitval = 1;
+
+    SOCK_STARTUP;
 
     putenv(strdup("POSIXLY_CORRECT=1"));
 
@@ -136,12 +138,13 @@ main(int argc, char *argv[])
      */
     switch (arg = snmp_parse_args(argc, argv, &session, "C:", optProc)) {
     case NETSNMP_PARSE_ARGS_ERROR:
-        exit(1);
+        goto out;
     case NETSNMP_PARSE_ARGS_SUCCESS_EXIT:
-        exit(0);
+        exitval = 0;
+        goto out;
     case NETSNMP_PARSE_ARGS_ERROR_USAGE:
         usage();
-        exit(1);
+        goto out;
     default:
         break;
     }
@@ -149,13 +152,13 @@ main(int argc, char *argv[])
     if (arg >= argc) {
         fprintf(stderr, "Missing object name\n");
         usage();
-        exit(1);
+        goto out;
     }
     if ((argc - arg) > 3*SNMP_MAX_CMDLINE_OIDS) {
         fprintf(stderr, "Too many assignments specified. ");
         fprintf(stderr, "Only %d allowed in one request.\n", SNMP_MAX_CMDLINE_OIDS);
         usage();
-        exit(1);
+        goto out;
     }
 
     /*
@@ -163,8 +166,8 @@ main(int argc, char *argv[])
      */
     for (; arg < argc; arg++) {
         DEBUGMSGTL(("snmp_parse_args", "handling (#%d): %s %s %s\n",
-                    arg,argv[arg], arg+1 < argc ? argv[arg+1] : NULL,
-                    arg+2 < argc ? argv[arg+2] : NULL));
+                    arg, argv[arg], arg+1 < argc ? argv[arg+1] : "",
+                    arg+2 < argc ? argv[arg+2] : ""));
         names[current_name++] = argv[arg++];
         if (arg < argc) {
             switch (*argv[arg]) {
@@ -179,6 +182,7 @@ main(int argc, char *argv[])
             case 'x':
             case 'd':
             case 'b':
+            case 'n': /* undocumented */
 #ifdef NETSNMP_WITH_OPAQUE_SPECIAL_TYPES
             case 'I':
             case 'U':
@@ -190,21 +194,19 @@ main(int argc, char *argv[])
             default:
                 fprintf(stderr, "%s: Bad object type: %c\n", argv[arg - 1],
                         *argv[arg]);
-                exit(1);
+                goto out;
             }
         } else {
             fprintf(stderr, "%s: Needs type and value\n", argv[arg - 1]);
-            exit(1);
+            goto out;
         }
         if (arg < argc)
             values[current_value++] = argv[arg];
         else {
             fprintf(stderr, "%s: Needs value\n", argv[arg - 2]);
-            exit(1);
+            goto out;
         }
     }
-
-    SOCK_STARTUP;
 
     /*
      * open an SNMP session 
@@ -215,8 +217,7 @@ main(int argc, char *argv[])
          * diagnose snmp_open errors with the input netsnmp_session pointer 
          */
         snmp_sess_perror("snmpset", &session);
-        SOCK_CLEANUP;
-        exit(1);
+        goto out;
     }
 
     /*
@@ -236,11 +237,10 @@ main(int argc, char *argv[])
         }
     }
 
-    if (failures) {
-        snmp_close(ss);
-        SOCK_CLEANUP;
-        exit(1);
-    }
+    if (failures)
+        goto close_session;
+
+    exitval = 0;
 
     /*
      * do the request 
@@ -278,7 +278,12 @@ main(int argc, char *argv[])
 
     if (response)
         snmp_free_pdu(response);
+
+close_session:
     snmp_close(ss);
+
+out:
+    netsnmp_cleanup_session(&session);
     SOCK_CLEANUP;
     return exitval;
 }

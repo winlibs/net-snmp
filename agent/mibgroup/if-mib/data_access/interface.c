@@ -6,6 +6,7 @@
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 #include <net-snmp/net-snmp-includes.h>
+#include <errno.h>
 
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/library/snmp_enum.h>
@@ -14,14 +15,21 @@
 #include "mibII/mibII_common.h"
 #include "if-mib/ifTable/ifTable.h"
 #include "if-mib/data_access/interface.h"
+#include "interface_private.h"
+#if defined(HAVE_PCRE_H)
+#include <pcre.h>
+#elif defined(HAVE_REGEX_H)
+#include <sys/types.h>
+#include <regex.h>
+#endif
 
-netsnmp_feature_child_of(interface_all, libnetsnmpmibs)
-netsnmp_feature_child_of(interface, interface_all)
-netsnmp_feature_child_of(interface_access_entry_set_admin_status, interface_all)
-netsnmp_feature_child_of(interface_legacy, interface_all)
+netsnmp_feature_child_of(interface_all, libnetsnmpmibs);
+netsnmp_feature_child_of(interface, interface_all);
+netsnmp_feature_child_of(interface_access_entry_set_admin_status, interface_all);
+netsnmp_feature_child_of(interface_legacy, interface_all);
 
 #ifdef NETSNMP_FEATURE_REQUIRE_INTERFACE_ACCESS_ENTRY_SET_ADMIN_STATUS
-netsnmp_feature_require(interface_arch_set_admin_status)
+netsnmp_feature_require(interface_arch_set_admin_status);
 #endif /* NETSNMP_FEATURE_REQUIRE_INTERFACE_ACCESS_ENTRY_SET_ADMIN_STATUS */
 
 /**---------------------------------------------------------------------*/
@@ -31,38 +39,33 @@ netsnmp_feature_require(interface_arch_set_admin_status)
 static netsnmp_conf_if_list *conf_list = NULL;
 static int need_wrap_check = -1;
 static int _access_interface_init = 0;
+static netsnmp_include_if_list *include_list;
+static int ifmib_max_num_ifaces = 0;
 
 /*
  * local static prototypes
  */
 static int _access_interface_entry_compare_name(const void *lhs,
                                                 const void *rhs);
-#ifndef NETSNMP_ACCESS_INTERFACE_NOARCH
 static void _access_interface_entry_release(netsnmp_interface_entry * entry,
                                             void *unused);
-#endif
 static void _access_interface_entry_save_name(const char *name, oid index);
 static void _parse_interface_config(const char *token, char *cptr);
+static void _parse_ifmib_max_num_ifaces(const char *token, char *cptr);
 static void _free_interface_config(void);
+static void _parse_include_if_config(const char *token, char *cptr);
+static void _free_include_if_config(void);
 
-/**---------------------------------------------------------------------*/
 /*
- * external per-architecture functions prototypes
- *
- * These shouldn't be called by the general public, so they aren't in
- * the header file.
+ * This function is called after the snmpd configuration has been read
+ * and loads the interface list if it has not yet been loaded.
  */
-#ifndef NETSNMP_ACCESS_INTERFACE_NOARCH
-extern void netsnmp_arch_interface_init(void);
-extern int
-netsnmp_arch_interface_container_load(netsnmp_container* container,
-                                      u_int load_flags);
-extern int
-netsnmp_arch_set_admin_status(netsnmp_interface_entry * entry,
-                              int ifAdminStatus);
-extern int netsnmp_arch_interface_index_find(const char*name);
-#endif
-
+static int
+_load_if_list(int majorID, int minorID, void *serverargs, void *clientarg)
+{
+    netsnmp_access_interface_init();
+    return 0;
+}
 
 /**
  * initialization
@@ -73,20 +76,31 @@ init_interface(void)
     snmpd_register_config_handler("interface", _parse_interface_config,
                                   _free_interface_config,
                                   "name type speed");
+
+    snmpd_register_config_handler("ifmib_max_num_ifaces",
+                                  _parse_ifmib_max_num_ifaces,
+                                  NULL,
+                                  "IF-MIB MAX Number of ifaces");
+
+    snmpd_register_config_handler("include_ifmib_iface_prefix",
+                                  _parse_include_if_config,
+                                  _free_include_if_config,
+                                  "IF-MIB iface names included");
+
+    snmp_register_callback(SNMP_CALLBACK_LIBRARY,
+                           SNMP_CALLBACK_POST_READ_CONFIG,
+                           _load_if_list, NULL);
 }
 
-
+/* May be called multiple times. */
 void
 netsnmp_access_interface_init(void)
 {
-    netsnmp_assert(0 == _access_interface_init); /* who is calling twice? */
-
     if (1 == _access_interface_init)
         return;
 
     _access_interface_init = 1;
 
-#ifndef NETSNMP_ACCESS_INTERFACE_NOARCH
     {
         netsnmp_container * ifcontainer;
 
@@ -99,7 +113,6 @@ netsnmp_access_interface_init(void)
         if(NULL != ifcontainer)
             netsnmp_access_interface_container_free(ifcontainer, 0);
     }
-#endif
 }
 
 /**---------------------------------------------------------------------*/
@@ -150,7 +163,6 @@ netsnmp_access_interface_container_init(u_int flags)
  * @retval NULL  error
  * @retval !NULL pointer to container
  */
-#ifndef NETSNMP_ACCESS_INTERFACE_NOARCH
 netsnmp_container*
 netsnmp_access_interface_container_load(netsnmp_container* container, u_int load_flags)
 {
@@ -209,7 +221,6 @@ netsnmp_access_interface_index_find(const char *name)
 
     return netsnmp_arch_interface_index_find(name);
 }
-#endif
 
 /**---------------------------------------------------------------------*/
 /*
@@ -296,15 +307,15 @@ netsnmp_access_interface_entry_create(const char *name, oid if_index)
     /*
      * get if index, and save name for reverse lookup
      */
-#ifndef NETSNMP_ACCESS_INTERFACE_NOARCH
     if (0 == if_index)
         entry->index = netsnmp_access_interface_index_find(name);
     else
-#endif
         entry->index = if_index;
+    netsnmp_assert(entry->index != 0);
     _access_interface_entry_save_name(name, entry->index);
 
-    entry->descr = strdup(name);
+    if (name)
+        entry->descr = strdup(name);
 
     /*
      * make some assumptions
@@ -312,7 +323,7 @@ netsnmp_access_interface_entry_create(const char *name, oid if_index)
     entry->connector_present = 1;
 
     entry->oid_index.len = 1;
-    entry->oid_index.oids = (oid *) & entry->index;
+    entry->oid_index.oids = &entry->index;
 
     return entry;
 }
@@ -332,18 +343,10 @@ netsnmp_access_interface_entry_free(netsnmp_interface_entry * entry)
      * since the whole entry is about to be freed
      */
 
-    if (NULL != entry->old_stats)
-        free(entry->old_stats);
-
-    if (NULL != entry->name)
-        free(entry->name);
-
-    if (NULL != entry->descr)
-        free(entry->descr);
-
-    if (NULL != entry->paddr)
-        free(entry->paddr);
-
+    free(entry->old_stats);
+    free(entry->name);
+    free(entry->descr);
+    free(entry->paddr);
     free(entry);
 }
 
@@ -433,7 +436,6 @@ Interface_Scan_NextInt(int *index, char *name, netsnmp_interface_entry **entry,
  * @retval 0   : success
  * @retval < 0 : error
  */
-#ifndef NETSNMP_ACCESS_INTERFACE_NOARCH
 int
 netsnmp_access_interface_entry_set_admin_status(netsnmp_interface_entry * entry,
                                                 int ifAdminStatus)
@@ -455,7 +457,6 @@ netsnmp_access_interface_entry_set_admin_status(netsnmp_interface_entry * entry,
 
     return rc;
 }
-#endif
 #endif /* NETSNMP_FEATURE_REMOVE_INTERFACE_ACCESS_ENTRY_SET_ADMIN_STATUS */
 
 /**---------------------------------------------------------------------*/
@@ -472,7 +473,6 @@ _access_interface_entry_compare_name(const void *lhs, const void *rhs)
                   ((const netsnmp_interface_entry *) rhs)->name);
 }
 
-#ifndef NETSNMP_ACCESS_INTERFACE_NOARCH
 /**
  */
 static void
@@ -480,7 +480,6 @@ _access_interface_entry_release(netsnmp_interface_entry * entry, void *context)
 {
     netsnmp_access_interface_entry_free(entry);
 }
-#endif
 
 /**
  */
@@ -671,7 +670,6 @@ netsnmp_access_interface_entry_calculate_stats(netsnmp_interface_entry *entry)
  * copy interface entry data (after checking for counter wraps)
  *
  * @retval -2 : malloc failed
- * @retval -1 : interfaces not the same
  * @retval  0 : no error
  */
 int
@@ -679,11 +677,6 @@ netsnmp_access_interface_entry_copy(netsnmp_interface_entry * lhs,
                                     netsnmp_interface_entry * rhs)
 {
     DEBUGMSGTL(("access:interface", "copy\n"));
-    
-    if ((NULL == lhs) || (NULL == rhs) ||
-        (NULL == lhs->name) || (NULL == rhs->name) ||
-        (0 != strncmp(lhs->name, rhs->name, strlen(rhs->name))))
-        return -1;
 
     /*
      * update stats
@@ -695,14 +688,11 @@ netsnmp_access_interface_entry_copy(netsnmp_interface_entry * lhs,
      * update data
      */
     lhs->ns_flags = rhs->ns_flags;
-    if((NULL != lhs->descr) && (NULL != rhs->descr) &&
-       (0 == strcmp(lhs->descr, rhs->descr)))
-        ;
-    else {
+    if (!lhs->descr || !rhs->descr || strcmp(lhs->descr, rhs->descr) != 0) {
         SNMP_FREE(lhs->descr);
         if (rhs->descr) {
             lhs->descr = strdup(rhs->descr);
-            if(NULL == lhs->descr)
+            if (!lhs->descr)
                 return -2;
         }
     }
@@ -798,6 +788,74 @@ netsnmp_access_interface_entry_overrides(netsnmp_interface_entry *entry)
     }
 }
 
+/*
+ * ifmib_max_num_ifaces config token
+ *
+ * Users may configure a maximum number if interfaces for
+ * the IF-MIB to include. This is useful in case there are
+ * a large number of interfaces (bridges, bonds, SVIs) that
+ * can slow things down.
+ */
+int netsnmp_access_interface_max_reached(const char *name)
+{
+    if (!name)
+        return FALSE;
+
+    if (ifmib_max_num_ifaces == 0)
+        /* nothing was set as a max so we include it all */
+        return FALSE;
+
+    if (netsnmp_arch_interface_index_find(name) > ifmib_max_num_ifaces)
+        /* We have gone over the max configured iface count */
+        return TRUE;
+
+    return FALSE;
+}
+
+/*
+ * include_ifmib_iface_prefix config token
+ *
+ * If and only if there is an iface prefix name match, we return TRUE.
+ * If there are no ifaces defined at all, return 1 so that the
+ * default behavior is to include all ifaces (include everything).
+ * (Note: including at least one iface prefix means we will only include
+ * those iface names that match the prefix and exclude all others.)
+ */
+int netsnmp_access_interface_include(const char *name)
+{
+    netsnmp_include_if_list *if_ptr;
+#ifdef HAVE_PCRE_H
+    int                      found_ndx[3];
+#endif
+
+    if (!name)
+        return TRUE;
+
+    if (!include_list)
+        /*
+         * If include_ifmib_iface_prefix was not configured, we should include
+         * all interfaces (which is the default).
+         */
+        return TRUE;
+
+
+    for (if_ptr = include_list; if_ptr; if_ptr = if_ptr->next) {
+#if defined(HAVE_PCRE_H)
+        if (pcre_exec(if_ptr->regex_ptr, NULL, name, strlen(name), 0, 0,
+                      found_ndx, 3) >= 0)
+            return TRUE;
+#elif defined(HAVE_REGEX_H)
+        if (regexec(if_ptr->regex_ptr, name, 0, NULL, 0) == 0)
+            return TRUE;
+#else
+        if (strncmp(name, if_ptr->name, strlen(if_ptr->name)) == 0)
+            return TRUE;
+#endif
+    }
+
+    return FALSE;
+}
+
 /**---------------------------------------------------------------------*/
 /*
  * interface config token
@@ -872,4 +930,132 @@ _free_interface_config(void)
         if_ptr = if_next;
     }
     conf_list = NULL;
+}
+
+/*
+ * Maximum number of interfaces to include in IF-MIB
+ */
+static void
+_parse_ifmib_max_num_ifaces(const char *token, char *cptr)
+{
+    int temp_max;
+    char *name, *st;
+
+    errno = 0;
+    name = strtok_r(cptr, " \t", &st);
+    if (!name) {
+        config_perror("Missing NUMBER parameter");
+        return;
+    }
+    if (sscanf(cptr, "%d", &temp_max) != 1) {
+        config_perror("Error converting parameter");
+        return;
+    }
+
+    ifmib_max_num_ifaces = temp_max;
+}
+
+
+/*
+ * include interface config token
+ */
+static void
+_parse_include_if_config(const char *token, char *cptr)
+{
+    netsnmp_include_if_list *if_ptr, *if_new;
+    char                    *name, *st;
+#if defined(HAVE_PCRE_H)
+    const char              *pcre_error;
+    int                     pcre_error_offset;
+#elif defined(HAVE_REGEX_H)
+    int                     r = 0;
+#endif
+
+    name = strtok_r(cptr, " \t", &st);
+    if (!name) {
+        config_perror("Missing NAME parameter");
+        return;
+    }
+
+    /* check for duplicate prefix configuration */
+    while (name != NULL) {
+        for (if_ptr = include_list; if_ptr; if_ptr = if_ptr->next) {
+            if (strncmp(name, if_ptr->name, strlen(if_ptr->name)) == 0) {
+                config_pwarn("Duplicate include interface prefix specification");
+                return;
+            }
+        }
+        /* now save the prefixes */
+        if_new = SNMP_MALLOC_TYPEDEF(netsnmp_include_if_list);
+        if (!if_new) {
+            config_perror("Out of memory");
+            goto err;
+        }
+        if_new->name = strdup(name);
+        if (!if_new->name) {
+            config_perror("Out of memory");
+            goto err;
+        }
+#if defined(HAVE_PCRE_H)
+        if_new->regex_ptr = pcre_compile(if_new->name, 0,  &pcre_error,
+                                         &pcre_error_offset, NULL);
+        if (!if_new->regex_ptr) {
+            config_perror(pcre_error);
+            goto err;
+        }
+#elif defined(HAVE_REGEX_H)
+        if_new->regex_ptr = malloc(sizeof(regex_t));
+        if (!if_new->regex_ptr) {
+            config_perror("Out of memory");
+            goto err;
+        }
+        r = regcomp(if_new->regex_ptr, if_new->name, REG_NOSUB);
+        if (r) {
+            char buf[BUFSIZ];
+            size_t regerror_len = 0;
+
+            regerror_len = regerror(r, if_new->regex_ptr, buf, BUFSIZ);
+            if (regerror_len >= BUFSIZ)
+                buf[BUFSIZ - 1] = '\0';
+            else
+                buf[regerror_len] = '\0';
+            config_perror(buf);
+            goto err;
+        }
+#endif
+        if_new->next = include_list;
+        include_list = if_new;
+        if_new = NULL;
+        name = strtok_r(NULL, " \t", &st);
+    }
+    return;
+
+err:
+    if (if_new) {
+#if defined(HAVE_PCRE_H) || defined(HAVE_REGEX_H)
+        free(if_new->regex_ptr);
+#endif
+        free(if_new->name);
+    }
+    free(if_new);
+}
+
+static void
+_free_include_if_config(void)
+{
+    netsnmp_include_if_list   *if_ptr = include_list, *if_next;
+
+    while (if_ptr) {
+        if_next = if_ptr->next;
+#if defined(HAVE_PCRE_H)
+        free(if_ptr->regex_ptr);
+#elif defined(HAVE_REGEX_H)
+        regfree(if_ptr->regex_ptr);
+        free(if_ptr->regex_ptr);
+#endif
+        free(if_ptr->name);
+        free(if_ptr);
+        if_ptr = if_next;
+    }
+    include_list = NULL;
 }

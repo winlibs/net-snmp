@@ -15,16 +15,16 @@
  */
 /***********************************************************************/
 
-#ifdef NETSNMP_CAN_USE_NLIST
 extern int      init_kmem(const char *);
-extern int      klookup(unsigned long, void *, size_t);
 extern void     free_kmem(void);
+#ifdef HAVE_KVM_H
+extern int      klookup(unsigned long, void *, size_t);
 #define NETSNMP_KLOOKUP(x,y,z) klookup((unsigned long) x,y,z)
 #else
 #define NETSNMP_KLOOKUP(x,y,z) (0)
 #endif
 
-#if HAVE_KVM_H
+#ifdef HAVE_KVM_H
 #include <kvm.h>
 extern kvm_t   *kd;
 #endif

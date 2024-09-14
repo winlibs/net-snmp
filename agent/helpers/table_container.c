@@ -1,6 +1,15 @@
 /*
  * table_container.c
  * $Id$
+ *
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #include <net-snmp/net-snmp-config.h>
@@ -11,7 +20,7 @@
 
 #include <net-snmp/agent/table_container.h>
 
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -21,14 +30,14 @@
 #include <net-snmp/library/container.h>
 #include <net-snmp/library/snmp_assert.h>
 
-netsnmp_feature_provide(table_container)
-netsnmp_feature_child_of(table_container, table_container_all)
-netsnmp_feature_child_of(table_container_replace_row, table_container_all)
-netsnmp_feature_child_of(table_container_extract, table_container_all)
-netsnmp_feature_child_of(table_container_management, table_container_all)
-netsnmp_feature_child_of(table_container_row_remove, table_container_all)
-netsnmp_feature_child_of(table_container_row_insert, table_container_all)
-netsnmp_feature_child_of(table_container_all, mib_helpers)
+netsnmp_feature_provide(table_container);
+netsnmp_feature_child_of(table_container, table_container_all);
+netsnmp_feature_child_of(table_container_replace_row, table_container_all);
+netsnmp_feature_child_of(table_container_extract, table_container_all);
+netsnmp_feature_child_of(table_container_management, table_container_all);
+netsnmp_feature_child_of(table_container_row_remove, table_container_all);
+netsnmp_feature_child_of(table_container_row_insert, table_container_all);
+netsnmp_feature_child_of(table_container_all, mib_helpers);
 
 #ifndef NETSNMP_FEATURE_REMOVE_TABLE_CONTAINER
 
@@ -340,6 +349,7 @@ netsnmp_container_table_register(netsnmp_handler_registration *reginfo,
 
     if ((NULL == reginfo) || (NULL == reginfo->handler) || (NULL == tabreg)) {
         snmp_log(LOG_ERR, "bad param in netsnmp_container_table_register\n");
+        netsnmp_handler_registration_free(reginfo);
         return SNMPERR_GENERR;
     }
 
@@ -347,7 +357,13 @@ netsnmp_container_table_register(netsnmp_handler_registration *reginfo,
         container = netsnmp_container_find(reginfo->handlerName);
 
     handler = netsnmp_container_table_handler_get(tabreg, container, key_type);
-    netsnmp_inject_handler(reginfo, handler );
+    if (!handler ||
+        (netsnmp_inject_handler(reginfo, handler) != SNMPERR_SUCCESS)) {
+        snmp_log(LOG_ERR, "could not create container table handler\n");
+        netsnmp_handler_free(handler);
+        netsnmp_handler_registration_free(reginfo);
+        return MIB_REGISTRATION_FAILED;
+    }
 
     return netsnmp_register_table(reginfo, tabreg);
 }

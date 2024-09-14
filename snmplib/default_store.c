@@ -128,26 +128,23 @@
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 #include <sys/types.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-#if HAVE_DMALLOC_H
-#include <dmalloc.h>
 #endif
 
 #include <net-snmp/types.h>
@@ -158,9 +155,9 @@
 
 #include <net-snmp/library/snmp_api.h>
 
-netsnmp_feature_child_of(default_store_all, libnetsnmp)
+netsnmp_feature_child_of(default_store_all, libnetsnmp);
 
-netsnmp_feature_child_of(default_store_void, default_store_all)
+netsnmp_feature_child_of(default_store_void, default_store_all);
 
 #ifndef NETSNMP_FEATURE_REMOVE_DEFAULT_STORE_VOID
 #endif /* NETSNMP_FEATURE_REMOVE_DEFAULT_STORE_VOID */
@@ -185,11 +182,6 @@ static char *netsnmp_ds_strings[NETSNMP_DS_MAX_IDS][NETSNMP_DS_MAX_SUBIDS];
 #ifndef NETSNMP_FEATURE_REMOVE_DEFAULT_STORE_VOID
 static void *netsnmp_ds_voids[NETSNMP_DS_MAX_IDS][NETSNMP_DS_MAX_SUBIDS];
 #endif /* NETSNMP_FEATURE_REMOVE_DEFAULT_STORE_VOID */
-
-/*
- * Prototype definitions 
- */
-void            netsnmp_ds_handle_config(const char *token, char *line);
 
 /**
  * Stores "true" or "false" given an int value for value into
@@ -298,11 +290,13 @@ netsnmp_ds_set_string(int storeid, int which, const char *value)
      */
     if (netsnmp_ds_strings[storeid][which] == value)
         return SNMPERR_SUCCESS;
-    
+
+    snmp_res_lock(MT_LIBRARY_ID, MT_LIB_SESSION);
     if (netsnmp_ds_strings[storeid][which] != NULL) {
         free(netsnmp_ds_strings[storeid][which]);
 	netsnmp_ds_strings[storeid][which] = NULL;
     }
+    snmp_res_unlock(MT_LIBRARY_ID, MT_LIB_SESSION);
 
     if (value) {
         netsnmp_ds_strings[storeid][which] = strdup(value);
@@ -545,6 +539,7 @@ netsnmp_ds_shutdown(void)
     netsnmp_ds_read_config *drsp;
     int             i, j;
 
+    snmp_res_lock(MT_LIBRARY_ID, MT_LIB_SESSION);
     for (drsp = netsnmp_ds_configs; drsp; drsp = netsnmp_ds_configs) {
         netsnmp_ds_configs = drsp->next;
 
@@ -568,5 +563,6 @@ netsnmp_ds_shutdown(void)
             }
         }
     }
+    snmp_res_unlock(MT_LIBRARY_ID, MT_LIB_SESSION);
 }
 /**  @} */

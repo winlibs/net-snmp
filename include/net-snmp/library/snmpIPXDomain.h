@@ -7,7 +7,7 @@ extern          "C" {
 
 #include <net-snmp/library/snmp_transport.h>
 #include <net-snmp/library/asn1.h>
-#if HAVE_NETIPX_IPX_H
+#ifdef HAVE_NETIPX_IPX_H
 #include <netipx/ipx.h>
 #endif
 
@@ -15,7 +15,8 @@ extern          "C" {
     config_error(IPX support unavailable for this platform -Linux only-);
 #endif
 
-netsnmp_transport *netsnmp_ipx_transport(struct sockaddr_ipx *addr, int local);
+netsnmp_transport *netsnmp_ipx_transport(const struct sockaddr_ipx *addr,
+                                         int local);
 
 /*
  * Convert an textually formatted IPX address into a sockaddr_ipx

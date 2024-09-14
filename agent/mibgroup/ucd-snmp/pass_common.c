@@ -1,11 +1,9 @@
 #include <net-snmp/net-snmp-config.h>
 
 #include <ctype.h>
-#if HAVE_STDDEF_H
 #include <stddef.h>
-#endif
 #include <stdio.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -135,7 +133,7 @@ netsnmp_internal_pass_parse(char * buf,
         c64.high = (unsigned long)(v64 >> 32);
         c64.low  = (unsigned long)(v64 & 0xffffffff);
         *var_len = sizeof(c64);
-        vp->type = ASN_INTEGER64;
+        vp->type = ASN_OPAQUE_I64;
         return ((unsigned char *) &c64);
     }
 #endif

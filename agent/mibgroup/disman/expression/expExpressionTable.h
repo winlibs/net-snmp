@@ -25,7 +25,7 @@
  */
 
 
-config_require(header_complex)
+config_require(header_complex);
 
     /*
      * our storage structure(s) 
@@ -115,6 +115,8 @@ config_require(header_complex)
 #define EXP_FAILURE_RESOURCEUNAVAILABLE        10
 #define EXP_FAILURE_DIVIDEBYZERO        11
 
+
+     extern struct header_complex_index *expExpressionTableStorage;
 
 /*
  * function prototypes 

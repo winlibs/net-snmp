@@ -15,33 +15,6 @@
 
 #ifdef NETSNMP_USE_MYSQL
 
-#if HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#if HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#include <stdio.h>
-#if HAVE_STRING_H
-#include <string.h>
-#else
-#include <strings.h>
-#endif
-#include <ctype.h>
-#include <sys/types.h>
-#if HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#if HAVE_NETDB_H
-#include <netdb.h>
-#endif
-
-#include <net-snmp/net-snmp-includes.h>
-#include <net-snmp/agent/net-snmp-agent-includes.h>
-#include "snmptrapd_handlers.h"
-#include "snmptrapd_auth.h"
-#include "snmptrapd_log.h"
-
 /*
  * SQL includes
  */
@@ -50,12 +23,46 @@
 #undef PACKAGE_STRING
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
+#if !defined(HAVE_MYSQL_INIT)
+#ifdef HAVE_MY_GLOBAL_H
 #include <my_global.h>
+#endif
+#ifdef HAVE_MY_SYS_H
 #include <my_sys.h>
+#endif
+#endif
 #include <mysql.h>
 #include <errmsg.h>
 
-netsnmp_feature_require(container_fifo)
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <ctype.h>
+#include <sys/types.h>
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+
+#include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/agent/net-snmp-agent-includes.h>
+#include "snmptrapd_handlers.h"
+#include "snmptrapd_auth.h"
+#include "snmptrapd_log.h"
+#include "snmptrapd_sql.h"
+
+netsnmp_feature_require(container_fifo);
 
 /*
  * define a structure to hold all the file globals
@@ -194,7 +201,7 @@ typedef struct sql_buf_t {
  * static bind structures, plus 2 static buffers to bind to.
  */
 static MYSQL_BIND _tbind[TBIND_MAX], _vbind[VBIND_MAX];
-static my_bool    _no_v3;
+static char       _no_v3;
 
 static void _sql_process_queue(u_int dontcare, void *meeither);
 
@@ -416,9 +423,6 @@ netsnmp_mysql_connect(void)
 int
 netsnmp_mysql_init(void)
 {
-    int not_argc = 0, i;
-    char *not_args[] = { NULL };
-    char **not_argv = not_args;
     netsnmp_trapd_handler *traph;
 
     DEBUGMSGTL(("sql:init","called\n"));
@@ -437,15 +441,30 @@ netsnmp_mysql_init(void)
         return -1;
     }
 
-#ifdef HAVE_BROKEN_LIBMYSQLCLIENT
-    my_init();
-#else
+#if defined(HAVE_MYSQL_INIT)
+    mysql_init(NULL);
+#elif defined(HAVE_MY_INIT)
     MY_INIT("snmptrapd");
+#else
+    my_init();
 #endif
 
+#if !defined(HAVE_MYSQL_OPTIONS)
+    {
+    int not_argc = 0, i;
+    char *not_args[] = { NULL };
+    char **not_argv = not_args;
+
     /** load .my.cnf values */
+#ifdef HAVE_MY_LOAD_DEFAULTS
+    my_load_defaults ("my", _sql.groups, &not_argc, &not_argv, 0);
+#elif defined(HAVE_LOAD_DEFAULTS)
     load_defaults ("my", _sql.groups, &not_argc, &not_argv);
-    for(i=0; i < not_argc; ++i) {
+#else
+#error Neither load_defaults() nor mysql_options() are available.
+#endif
+
+    for (i = 0; i < not_argc; ++i) {
         if (NULL == not_argv[i])
             continue;
         if (strncmp(not_argv[i],"--password=",11) == 0)
@@ -463,6 +482,8 @@ netsnmp_mysql_init(void)
         else
             snmp_log(LOG_WARNING, "unknown argument[%d] %s\n", i, not_argv[i]);
     }
+    }
+#endif /* !defined(HAVE_MYSQL_OPTIONS) */
 
     /** init bind structures */
     memset(_tbind, 0x0, sizeof(_tbind));
@@ -541,6 +562,10 @@ netsnmp_mysql_init(void)
         netsnmp_sql_error("mysql_init() failed (out of memory?)");
         return -1;
     }
+
+#ifdef HAVE_MYSQL_OPTIONS
+    mysql_options(_sql.conn, MYSQL_READ_DEFAULT_GROUP, "snmptrapd");
+#endif
 
     /** try to connect; we'll try again later if we fail */
     (void) netsnmp_mysql_connect();
@@ -879,7 +904,7 @@ _sql_save_varbind_info(sql_buf *sqlb, netsnmp_pdu  *pdu)
         tmp_size = 0;
         buf_val_len_t = 0;
         sprint_realloc_by_type((u_char**)&sqlvb->val, &tmp_size,
-                               &buf_val_len_t, 1, var, 0, 0, 0);
+                               &buf_val_len_t, 1, var, NULL, NULL, NULL);
         sqlvb->val_len = buf_val_len_t;
 #else
         sqlvb->val = netsnmp_memdup(var->val.string, var->val_len);
@@ -936,7 +961,7 @@ mysql_handler(netsnmp_pdu           *pdu,
     if(rc) {
         snmp_log(LOG_ERR, "Could not log queue sql trap buffer\n");
         _sql_log(sqlb, NULL);
-        _sql_buf_free(sqlb, 0);
+        _sql_buf_free(sqlb, NULL);
         return -1;
     }
 

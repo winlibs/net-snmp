@@ -36,40 +36,40 @@ SOFTWARE.
  */
 #include <net-snmp/net-snmp-config.h>
 
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 #include <sys/types.h>
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 #include <stdio.h>
 #include <ctype.h>
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_SYS_SELECT_H
+#ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
@@ -143,6 +143,11 @@ add(netsnmp_pdu *pdu, const char *mibnodename,
         snmp_perror(mibnodename);
         fprintf(stderr, "couldn't find mib node %s, giving up\n",
                 mibnodename);
+        exit(1);
+    }
+
+    if (base_length + indexlen > sizeof(base) / sizeof(base[0])) {
+        fprintf(stderr, "internal error for %s, giving up\n", mibnodename);
         exit(1);
     }
 
@@ -255,29 +260,30 @@ main(int argc, char *argv[])
     size_t          base_length;
     int             status;
     netsnmp_variable_list *saved = NULL, *vlp = saved, *vlp2;
-    int             count = 0;
+    int             count = 0, exit_code = 1;
+
+    SOCK_STARTUP;
 
     /*
      * get the common command line arguments 
      */
     switch (arg = snmp_parse_args(argc, argv, &session, "C:", optProc)) {
     case NETSNMP_PARSE_ARGS_ERROR:
-        exit(1);
+        goto out;
     case NETSNMP_PARSE_ARGS_SUCCESS_EXIT:
-        exit(0);
+        exit_code = 0;
+        goto out;
     case NETSNMP_PARSE_ARGS_ERROR_USAGE:
         usage();
-        exit(1);
+        goto out;
     default:
         break;
     }
 
     if (arg != argc) {
 	fprintf(stderr, "snmpdf: extra argument: %s\n", argv[arg]);
-	exit(1);
+	goto out;
     }
-
-    SOCK_STARTUP;
 
     /*
      * Open an SNMP session.
@@ -288,8 +294,7 @@ main(int argc, char *argv[])
          * diagnose snmp_open errors with the input netsnmp_session pointer 
          */
         snmp_sess_perror("snmpdf", &session);
-        SOCK_CLEANUP;
-        exit(1);
+        goto out;
     }
 
     if (human_units) {
@@ -332,7 +337,7 @@ main(int argc, char *argv[])
             status = snmp_synch_response(ss, pdu, &response);
             if (status != STAT_SUCCESS || !response) {
                 snmp_sess_perror("snmpdf", ss);
-                exit(1);
+                goto close_session;
             }
 
             vlp2 = response->variables;
@@ -411,7 +416,7 @@ main(int argc, char *argv[])
             status = snmp_synch_response(ss, pdu, &response);
             if (status != STAT_SUCCESS || !response) {
                 snmp_sess_perror("snmpdf", ss);
-                exit(1);
+                goto close_session;
             }
 
             vlp2 = response->variables;
@@ -452,11 +457,16 @@ main(int argc, char *argv[])
 
     if (count == 0) {
         fprintf(stderr, "Failed to locate any partitions.\n");
-        exit(1);
+        goto close_session;
     }
 
-    snmp_close(ss);
-    SOCK_CLEANUP;
-    return 0;
+    exit_code = 0;
 
+close_session:
+    snmp_close(ss);
+
+out:
+    netsnmp_cleanup_session(&session);
+    SOCK_CLEANUP;
+    return exit_code;
 }                               /* end main() */

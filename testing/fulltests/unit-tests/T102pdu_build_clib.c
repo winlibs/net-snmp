@@ -8,14 +8,15 @@ size_t packet_len, offset = 0;
 netsnmp_session session, *ss;
 int rc;
 
-/* prototype copied from snmp_api.c */
-int             snmp_build(u_char ** pkt, size_t * pkt_len,
-                           size_t * offset, netsnmp_session * pss,
-                           netsnmp_pdu *pdu);
-
 init_snmp("testing");
 snmp_sess_init(&session);
+#if !defined(NETSNMP_DISABLE_SNMPV2C)
 session.version = SNMP_VERSION_2c;
+#elif !defined(NETSNMP_DISABLE_SNMPV1)
+session.version = SNMP_VERSION_1;
+#else
+#error This test does not (yet?) support SNMPv3
+#endif
 session.peername = strdup("udp:127.0.0.1"); /* we won't actually connect */
 session.community = (u_char *) strdup("bogus");
 session.community_len = strlen((char *) session.community);

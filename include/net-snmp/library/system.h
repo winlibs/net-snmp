@@ -5,6 +5,8 @@
 #error "Please include <net-snmp/net-snmp-config.h> before this file"
 #endif
 
+#include <stdarg.h> /* va_list */
+
 #ifdef __cplusplus
 extern          "C" {
 #endif
@@ -41,6 +43,9 @@ SOFTWARE.
  */
 
 
+    struct timeval;
+
+
     /*
      * function to create a daemon. Will fork and call setsid().
      *
@@ -59,7 +64,7 @@ SOFTWARE.
      */
 #ifndef MSVC_PERL
 
-#if !defined(HAVE_READDIR) && !defined(PHP_WIN32)
+#ifndef HAVE_READDIR
     /*
      * structure of a directory entry 
      */
@@ -95,18 +100,9 @@ SOFTWARE.
 
 #endif                         /* MSVC_PERL */
 
-/*
- * Note: when compiling Net-SNMP with dmalloc enabled on a system without
- * strcasecmp() or strncasecmp(), the macro HAVE_STRNCASECMP is
- * not defined but strcasecmp() and strncasecmp() are defined as macros in
- * <dmalloc.h>. In order to prevent a compilation error, do not declare
- * strcasecmp() or strncasecmp() when the <dmalloc.h> header has been included.
- */
-#if !defined(HAVE_STRNCASECMP) && !defined(strcasecmp)
+#if !defined(HAVE_STRNCASECMP) && !defined(strncasecmp)
     NETSNMP_IMPORT
     int             strcasecmp(const char *s1, const char *s2);
-#endif
-#if !defined(HAVE_STRNCASECMP) && !defined(strncasecmp)
     NETSNMP_IMPORT
     int             strncasecmp(const char *s1, const char *s2, size_t n);
 #endif
@@ -124,6 +120,9 @@ SOFTWARE.
 #endif                          /* WIN32 */
 
 #include <net-snmp/types.h>     /* For definition of in_addr_t */
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
 
     /* Simply resolve a hostname and return first IPv4 address.
      * Returns -1 on error */
@@ -183,6 +182,12 @@ SOFTWARE.
 #endif
 #ifndef HAVE_SNPRINTF
     int             snprintf(char *, size_t, const char *, ...);
+#endif
+#ifndef HAVE_ASPRINTF
+    NETSNMP_IMPORT
+    int vasprintf(char **strp, const char *fmt, va_list ap);
+    NETSNMP_IMPORT
+    int asprintf(char **strp, const char *fmt, ...);
 #endif
 
     NETSNMP_IMPORT

@@ -13,25 +13,22 @@ use constant false => 0;
 use constant true => 1;
 my $target_arch = $ENV{TARGET_CPU} ? $ENV{TARGET_CPU} : $ENV{Platform} ?
                   $ENV{Platform} : "x86";
+$target_arch = lc $target_arch;
 if ($target_arch ne "x86" && $target_arch ne "x64") {
     print "Error: unsupported target architecture $target_arch\n";
     die;
 }
 my @perl_arch = split(/-/, $Config{archname});
-if ($perl_arch[1] ne $target_arch) {
-    print "perl_arch = $perl_arch[1] does not match target_arch = $target_arch\n";
-    die;
-}
 my $openssl = false;
 my $default_openssldir = $target_arch eq "x64" ?
-    "C:\\OpenSSL-Win64" : "C:\\OpenSSL-Win32";
+    "C:\\Progra~1\\OpenSSL-Win64" : "C:\\Progra~1\\OpenSSL-Win32";
 my $default_opensslincdir = $default_openssldir . "\\include";
 my $opensslincdir = $default_opensslincdir;
 my $default_openssllibdir = $default_openssldir . "\\lib\\VC";
 my $openssllibdir = $default_openssllibdir;
 my $b_ipv6 = false;
 my $b_winextdll = false;
-my $sdk = false;
+my $sdk = true;
 my $default_install_base = "c:/usr";
 my $install_base = $default_install_base;
 my $install = true;
@@ -40,16 +37,15 @@ my $perl = false;
 my $perl_install = false;
 my $logging = true;
 my $debug = false;
-my $configOpts = "";
+my $configOpts;
 my $link_dynamic = false;
 my $option;
 
 # Path of this script (source tree path + "win32").
 my $current_pwd = dirname(abs_path($0));
 
-if ( -d $ENV{MSVCDir} || -d $ENV{VCINSTALLDIR} || defined($ENV{TARGET_CPU}) ) {
-}
-else {
+if (!defined($ENV{MSVCDir}) && !defined($ENV{VCINSTALLDIR}) &&
+    !defined($ENV{TARGET_CPU})) {
   print "\nPlease run VCVARS32.BAT first to set up the Visual Studio build\n" .
         "environment.\n\n";
   system("pause");
@@ -62,23 +58,22 @@ while (1) {
   print "1.  OpenSSL support:                " . ($openssl ? "enabled" : "disabled"). "\n";
   print "2.  OpenSSL include directory:      " . $opensslincdir. "\n";
   print "3.  OpenSSL library director:       " . $openssllibdir. "\n";
-  print "4.  Platform SDK support:           " . ($sdk ? "enabled" : "disabled") . "\n";
   print "\n";
-  print "5.  Install path:                   " . $install_base . "\n";
-  print "6.  Install after build:            " . ($install ? "enabled" : "disabled") . "\n";
+  print "4.  Install path:                   " . $install_base . "\n";
+  print "5.  Install after build:            " . ($install ? "enabled" : "disabled") . "\n";
   print "\n";
-  print "7.  Perl modules:                   " . ($perl ? "enabled" : "disabled") . "\n";
-  print "8.  Install perl modules:           " . ($perl_install ? "enabled" : "disabled") . "\n";
+  print "6.  Perl modules:                   " . ($perl ? "enabled" : "disabled") . "\n";
+  print "7.  Install perl modules:           " . ($perl_install ? "enabled" : "disabled") . "\n";
   print "\n";
-  print "9.  Quiet build (logged):           " . ($logging ? "enabled" : "disabled") . "\n";
-  print "10. Debug mode:                     " . ($debug ? "enabled" : "disabled") . "\n";
+  print "8.  Quiet build (logged):           " . ($logging ? "enabled" : "disabled") . "\n";
+  print "9.  Debug mode:                     " . ($debug ? "enabled" : "disabled") . "\n";
   print "\n";
-  print "11. IPv6 transports (requires SDK): " . ($b_ipv6 ? "enabled" : "disabled") . "\n";
-  print "12. winExtDLL agent (requires SDK): " . ($b_winextdll ? "enabled" : "disabled") . "\n";
+  print "10. IPv6 transports:                " . ($b_ipv6 ? "enabled" : "disabled") . "\n";
+  print "11. winExtDLL agent:                " . ($b_winextdll ? "enabled" : "disabled") . "\n";
   print "\n";
-  print "13. Link type:                      " . ($link_dynamic ? "dynamic" : "static") . "\n";
+  print "12. Link type:                      " . ($link_dynamic ? "dynamic" : "static") . "\n";
   print "\n";
-  print "14. Install development files       " . ($install_devel ? "enabled" : "disabled") . "\n";
+  print "13. Install development files       " . ($install_devel ? "enabled" : "disabled") . "\n";
   print "\nF.  Finished - start build\n";
   print "Q.  Quit - abort build\n\n";
   print "Select option to set / toggle: ";
@@ -99,48 +94,45 @@ while (1) {
     $openssllibdir =~ s/\\/\//g;
     $openssllibdir = $default_openssllibdir if ($openssllibdir eq "");
   }
-  elsif ($option eq "4") {
-    $sdk = !$sdk;
-  }
-  elsif ($option eq "11") {
+  elsif ($option eq "10") {
     $b_ipv6 = !$b_ipv6;
     if ($b_ipv6 && !$sdk) {
       print "\n\n* SDK required for IPv6 and has been automatically enabled";
       $sdk = true;
     }
   }
-  elsif ($option eq "12") {
+  elsif ($option eq "11") {
     $b_winextdll = !$b_winextdll;
     if ($b_winextdll && !$sdk) {
       print "\n\n* SDK required for IPv6 and has been automatically enabled";
       $sdk = true;
     }
   }
-  elsif ($option eq "5") {
+  elsif ($option eq "4") {
     print "Please enter the new install path [$default_install_base]: ";
     chomp ($install_base = <>);
     $install_base =~ s/\\/\//g;
     $install_base = $default_install_base if ($install_base eq "");
   }
-  elsif ($option eq "6") {
+  elsif ($option eq "5") {
     $install = !$install;
   }
-  elsif ($option eq "14") {
+  elsif ($option eq "13") {
     $install_devel = !$install_devel;
   }
-  elsif ($option eq "7") {
+  elsif ($option eq "6") {
     $perl = !$perl;
   }
-  elsif ($option eq "8") {
+  elsif ($option eq "7") {
     $perl_install = !$perl_install;
   }
-  elsif ($option eq "9") {
+  elsif ($option eq "8") {
     $logging = !$logging;
   }
-  elsif ($option eq "10") {
+  elsif ($option eq "9") {
     $debug = !$debug;
   }
-  elsif ($option eq "13") {
+  elsif ($option eq "12") {
     $link_dynamic = !$link_dynamic;
   }
   elsif (lc($option) eq "f") {
@@ -151,16 +143,19 @@ while (1) {
   }
 }
 
+if ($perl && $perl_arch[1] ne $target_arch) {
+    print "perl_arch = $perl_arch[1] does not match target_arch = $target_arch\n";
+    die;
+}
+
 my $linktype = $link_dynamic ? "dynamic" : "static";
-$configOpts .= $openssl ? "--with-ssl" : "";
-$configOpts .= " ";
-$configOpts .= $sdk ? "--with-sdk" : "";
-$configOpts .= " ";
-$configOpts .= $b_ipv6 ? "--with-ipv6" : "";
-$configOpts .= " ";
-$configOpts .= $b_winextdll ? "--with-winextdll" : "";
-$configOpts .= " ";
-$configOpts .= $debug ? "--config=debug" : "--config=release";
+$configOpts = (($openssl ? "--with-ssl --enable-blumenthal-aes" : "")	 . " " .
+               ($opensslincdir ? "--with-sslincdir=$opensslincdir" : "") . " " .
+               ($openssllibdir ? "--with-ssllibdir=$openssllibdir" : "") . " " .
+               ($sdk ? "--with-sdk" : "")		. " " .
+               ($b_ipv6 ? "--with-ipv6" : "")		. " " .
+               ($b_winextdll ? "--with-winextdll" : "") . " " .
+               ($debug ? "--config=debug" : "--config=release"));
 
 # Set environment variables
 
@@ -168,13 +163,10 @@ $configOpts .= $debug ? "--config=debug" : "--config=release";
 $ENV{NO_EXTERNAL_DEPS}="1";
 
 # Set PATH environment variable so Perl make tests can locate the DLL
-$ENV{PATH} = "$current_pwd\\bin\\" . ($debug ? "debug" : "release" ) . ";$ENV{PATH}";
-
-$ENV{INCLUDE} .= ";$opensslincdir";
-$ENV{LIB}     .= ";$openssllibdir";
+$ENV{PATH} = File::Spec->catdir($current_pwd, "bin", $debug ? "debug" : "release") . ";$ENV{PATH}";
 
 # Set MIBDIRS environment variable so Perl make tests can locate the mibs
-$ENV{MIBDIRS} = dirname($current_pwd) . "/mibs";
+$ENV{MIBDIRS} = File::Spec->catdir(dirname($current_pwd), "mibs");
 
 # Set SNMPCONFPATH environment variable so Perl conf.t test can locate
 # the configuration files.
@@ -203,6 +195,9 @@ print "Building main package...\n";
 system("nmake /nologo" . ($logging ? " > make.out 2>&1" : "")) == 0 || die ($logging ? "Build error (see make.out)" : "Build error (see above)");
 
 if ($perl) {
+  if ($Config{'ccname'} =~ /^gcc/) {
+    die "The perl interpreter has been built with gcc instead of MSVC. Giving up.\n";
+  }
   if (!$link_dynamic) {
     print "Running Configure for DLL...\n";
     system("perl Configure $configOpts --linktype=dynamic --prefix=\"$install_base\"" . ($logging ? " > perlconfigure.out 2>&1" : "")) == 0 || die ($logging ? "Build error (see perlconfigure.out)" : "Build error (see above)");

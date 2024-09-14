@@ -23,10 +23,10 @@
  */
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -36,7 +36,7 @@
 #endif
 
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-netsnmp_feature_require(header_complex_find_entry)
+netsnmp_feature_require(header_complex_find_entry);
 #endif /* NETSNMP_NO_WRITE_SUPPORT */
 
 /*
@@ -98,12 +98,6 @@ struct variable2 expObjectTable_variables[] = {
      var_expObjectTable, 2, {1, 10}}
 };
 
-
-/*
- * global storage of our data, saved in and configured by header_complex() 
- */
-extern struct header_complex_index *expExpressionTableStorage;
-extern struct header_complex_index *expValueTableStorage;
 
 struct header_complex_index *expObjectTableStorage = NULL;
 
@@ -1374,7 +1368,7 @@ write_expObjectEntryStatus(int action,
          */
 
 
-        if (StorageTmp == NULL) {
+        if (StorageTmp == NULL && set_value != RS_DESTROY) {
             /*
              * row creation, so add it 
              */
@@ -1383,7 +1377,7 @@ write_expObjectEntryStatus(int action,
             /*
              * XXX: ack, and if it is NULL? 
              */
-        } else if (set_value != RS_DESTROY) {
+        } else if (StorageTmp != NULL && set_value != RS_DESTROY) {
             /*
              * set the flag? 
              */

@@ -1,321 +1,602 @@
 """ Runs all unit tests for the netsnmp package.   """
 # Copyright (c) 2006 Andy Gross.  See LICENSE.txt for details.
 
-import sys
+import os
 import unittest
 import netsnmp
-import time
+
+def snmp_dest(**kwargs):
+    """Return information about how to communicate with snmpd"""
+    dest = {
+        'Version':    1,
+        'DestHost':   'localhost:' + str(os.environ.get("SNMP_SNMPD_PORT", 161)),
+         # Both the community strings "public" and "private"
+         # cannot be used to set variables using "snmpset"
+         # operations. Run the "snmpset" tests after replacing
+         # the following 'Community' string with any other
+         # configured community string from the snmpd.conf file.  
+        'Community':  'public',
+    }
+    for key, value in kwargs.items():
+        dest[key] = value
+    return dest
+
+def setup_v1():
+    return netsnmp.Session(**snmp_dest())
+
+def setup_v2():
+    sess = netsnmp.Session(**snmp_dest(Version=2))
+    sess.UseEnums = 1
+    sess.UseLongNames = 1
+    return sess
+
+def setup_v3():
+    sess = netsnmp.Session(**snmp_dest(Version=3,
+                                       SecLevel='authPriv',
+                                       SecName='initial',
+                                       PrivPass='priv_pass',
+                                       AuthPass='auth_pass'))
+    sess.UseSprintValue = 1
+    return sess
 
 class BasicTests(unittest.TestCase):
-    def testFuncs(self):        
-        print ""
+    """Basic unit tests for the Net-SNMP Python interface"""
+    def test_varbind_creation(self):
         var = netsnmp.Varbind('sysDescr.0')
-        var = netsnmp.Varbind('sysDescr','0')
+        self.assertEqual(var.tag, 'sysDescr')
+        self.assertEqual(var.iid, '0')
+
+        var = netsnmp.Varbind('sysDescr', '0')
+        self.assertEqual(var.tag, 'sysDescr')
+        self.assertEqual(var.iid, '0')
+
         var = netsnmp.Varbind(
-            '.iso.org.dod.internet.mgmt.mib-2.system.sysDescr','0')
+            '.iso.org.dod.internet.mgmt.mib-2.system.sysDescr', '0')
+        self.assertEqual(var.tag,
+                         '.iso.org.dod.internet.mgmt.mib-2.system.sysDescr')
+        self.assertEqual(var.iid, '0')
+
         var = netsnmp.Varbind(
             '.iso.org.dod.internet.mgmt.mib-2.system.sysDescr.0')
+        self.assertEqual(var.tag,
+                         '.iso.org.dod.internet.mgmt.mib-2.system.sysDescr.0')
+        self.assertEqual(var.iid, None)
+
         var = netsnmp.Varbind('.1.3.6.1.2.1.1.1.0')
+        self.assertEqual(var.tag, '.1.3.6.1.2.1.1.1.0')
+        self.assertEqual(var.iid, '')
 
-        var = netsnmp.Varbind('.1.3.6.1.2.1.1.1','0')
+    def test_v1_get(self):
+        print("\n")
+        print("---v1 GET tests -------------------------------------\n")
+        var = netsnmp.Varbind('.1.3.6.1.2.1.1.1', '0')
+        res = netsnmp.snmpget(var, **snmp_dest())
 
-        print "---v1 GET tests -------------------------------------\n"
-        res = netsnmp.snmpget(var,
-                              Version = 1,
-                              DestHost='localhost',
-                              Community='public')
+        print("v1 snmpget result: ", res, "\n")
+        self.assertEqual(len(res), 1)
+        self.assertIsNotNone(res[0])
+        self.assertNotEqual(len(res), '')
 
-        print "v1 snmpget result: ", res, "\n"
+        print("v1 get var: ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        self.assertEqual(var.tag, 'sysDescr')
+        self.assertEqual(var.iid, '0')
+        self.assertEqual(var.val, res[0])
+        self.assertEqual(var.type, 'OCTETSTR')
 
-        print "v1 get var: ",  var.tag, var.iid, "=", var.val, '(',var.type,')'
-        
-        print "---v1 GETNEXT tests-------------------------------------\n"
-        res = netsnmp.snmpgetnext(var,
-                                  Version = 1,
-                                  DestHost='localhost',
-                                  Community='public')
+    def test_v1_get_no_such_oid(self):
+        print("\n")
+        print("---v1 GET test of nonexistent OID -------------------\n")
+        var = netsnmp.Varbind('.1.3.6.1.2.1.1.1.123', '0')
+        res = netsnmp.snmpget(var, **snmp_dest())
 
-        print "v1 snmpgetnext result: ", res, "\n"
-                
-        print "v1 getnext var: ",  var.tag, var.iid, "=", var.val, '(',var.type,')'
-        
-        print "---v1 SET tests-------------------------------------\n"
-        var = netsnmp.Varbind('sysLocation','0', 'my new location')
-        res = netsnmp.snmpset(var,
-                        Version = 1,
-                        DestHost='localhost',
-                        Community='public')
+        print("v1 snmpget result: ", res, "\n")
+        self.assertEqual(len(res), 1)
+        self.assertIsNone(res[0])
 
-        print "v1 snmpset result: ", res, "\n"
+        print("v1 get var: ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        self.assertIsNotNone(var.tag)
+        self.assertEqual(var.tag, '.1.3.6.1.2.1.1.1.123')
+        self.assertIsNotNone(var.iid)
+        self.assertEqual(var.iid, '0')
+        self.assertIsNone(var.val)
+        self.assertIsNone(var.type)
 
-        print "v1 set var: ",  var.tag, var.iid, "=", var.val, '(',var.type,')'
-        
-        print "---v1 walk tests-------------------------------------\n"
-        vars = netsnmp.VarList(netsnmp.Varbind('system'))
 
-        print "v1 varlist walk in: "
-        for var in vars:
-            print "  ",var.tag, var.iid, "=", var.val, '(',var.type,')'
+    def test_v1_getnext(self):
+        print("\n")
+        print("---v1 GETNEXT tests-------------------------------------\n")
+        var = netsnmp.Varbind('.1.3.6.1.2.1.1.1', '0')
+        res = netsnmp.snmpgetnext(var, **snmp_dest())
 
-        res = netsnmp.snmpwalk(vars,
-                               Version = 1,
-                               DestHost='localhost',
-                               Community='public')
-        print "v1 snmpwalk result: ", res, "\n"
+        print("v1 snmpgetnext result: ", res, "\n")
+        self.assertEqual(len(res), 1)
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-       
-        
-        print "---v1 walk 2-------------------------------------\n"
+        print("v1 getnext var: ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        self.assertTrue(var.tag is not None)
+        self.assertTrue(var.iid is not None)
+        self.assertTrue(var.val is not None)
+        self.assertTrue(var.type is not None)
 
-        print "v1 varbind walk in: "
+    def test_v1_set(self):
+        print("\n")
+        print("---v1 SET tests-------------------------------------\n")
+        # snmpset fails for the 'sysLocation' variable, 
+        # as the syslocation token is configured in the
+        # snmpd.conf file, which disables write access
+        # to the variable.
+        # Hence using the 'sysName' variable for the set tests.
+        var = netsnmp.Varbind('sysName', '0', 'my new name')
+        res = netsnmp.snmpset(var, **snmp_dest())
+
+        print("v1 snmpset result: ", res, "\n")
+        self.assertEqual(res, 1)
+
+        print("v1 set var: ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        self.assertEqual(var.tag, 'sysName')
+        self.assertEqual(var.iid, '0')
+        self.assertEqual(var.val, 'my new name')
+        self.assertTrue(var.type is None)
+
+    def test_v1_walk(self):
+        print("\n")
+        print("---v1 walk tests-------------------------------------\n")
+        varlist = netsnmp.VarList(netsnmp.Varbind('system'))
+
+        print("v1 varlist walk in: ")
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertEqual(var.iid, '')
+            self.assertIsNone(var.type)
+            self.assertIsNone(var.val)
+            print("  ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+
+        res = netsnmp.snmpwalk(varlist, **snmp_dest())
+        print("v1 snmpwalk result: ", res, "\n")
+        self.assertTrue(len(res) > 0)
+
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+
+    def test_v1_walk_2(self):
+        print("\n")
+        print("---v1 walk 2-------------------------------------\n")
+
+        print("v1 varbind walk in: ")
         var = netsnmp.Varbind('system')
-        res = netsnmp.snmpwalk(var,
-                               Version = 1,
-                               DestHost='localhost',
-                               Community='public')
-        print "v1 snmpwalk result (should be = orig): ", res, "\n"
+        self.assertEqual(var.tag, 'system')
+        self.assertEqual(var.iid, '')
+        self.assertEqual(var.val, None)
+        self.assertEqual(var.type, None)
+        res = netsnmp.snmpwalk(var, **snmp_dest())
+        print("v1 snmpwalk result (should be = orig): ", res, "\n")
+        self.assertTrue(len(res) > 0)
 
-        print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        
-        print "---v1 multi-varbind test-------------------------------------\n"
-        sess = netsnmp.Session(Version=1,
-                               DestHost='localhost',
-                               Community='public')
-        
-        vars = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
-                               netsnmp.Varbind('sysContact', 0),
-                               netsnmp.Varbind('sysLocation', 0))
-        vals = sess.get(vars)
-        print "v1 sess.get result: ", vals, "\n"
+        print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        self.assertEqual(var.tag, 'system')
+        self.assertEqual(var.iid, '')
+        self.assertEqual(var.val, None)
+        self.assertEqual(var.type, None)
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-       
-        vals = sess.getnext(vars)
-        print "v1 sess.getnext result: ", vals, "\n"
+    def test_v1_mv_get(self):
+        print("\n")
+        print("---v1 multi-varbind test-------------------------------------\n")
+        sess = setup_v1()
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-       
-        vars = netsnmp.VarList(netsnmp.Varbind('sysUpTime'),
-                               netsnmp.Varbind('sysORLastChange'),
-                               netsnmp.Varbind('sysORID'),
-                               netsnmp.Varbind('sysORDescr'),
-                               netsnmp.Varbind('sysORUpTime'))
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
+                                  netsnmp.Varbind('sysContact', 0),
+                                  netsnmp.Varbind('sysLocation', 0))
+        vals = sess.get(varlist)
+        print("v1 sess.get result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
 
-        vals = sess.getbulk(2, 8, vars)
-        print "v1 sess.getbulk result: ", vals, "\n"
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
+        vals = sess.getnext(varlist)
+        print("v1 sess.getnext result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
 
-        print "---v1 set2-------------------------------------\n"
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
 
-        vars = netsnmp.VarList(
-            netsnmp.Varbind('sysLocation', '0', 'my newer location'))
-        res = sess.set(vars)
-        print "v1 sess.set result: ", res, "\n"
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime'),
+                                  netsnmp.Varbind('sysORLastChange'),
+                                  netsnmp.Varbind('sysORID'),
+                                  netsnmp.Varbind('sysORDescr'),
+                                  netsnmp.Varbind('sysORUpTime'))
 
-        print "---v1 walk3-------------------------------------\n"
-        vars = netsnmp.VarList(netsnmp.Varbind('system'))
-                
-        vals = sess.walk(vars)
-        print "v1 sess.walk result: ", vals, "\n"
-        
-        for var in vars:
-            print "  ",var.tag, var.iid, "=", var.val, '(',var.type,')'
-            
-        print "---v2c get-------------------------------------\n"
+        vals = sess.getbulk(2, 8, varlist)
+        print("v1 sess.getbulk result: ", vals, "\n")
+        self.assertEqual(vals, None) # GetBulk is not supported for v1
 
-        sess = netsnmp.Session(Version=2,
-                               DestHost='localhost',
-                               Community='public')
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNone(var.type)
+            self.assertIsNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
 
-        sess.UseEnums = 1
-        sess.UseLongNames = 1
-        
-        vars = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
-                               netsnmp.Varbind('sysContact', 0),
-                               netsnmp.Varbind('sysLocation', 0))
-        vals = sess.get(vars)
-        print "v2 sess.get result: ", vals, "\n"
+    def test_v1_set_2(self):
+        print("\n")
+        print("---v1 set2-------------------------------------\n")
 
-        print "---v2c getnext-------------------------------------\n"
+        sess = setup_v1()
+        # snmpset fails for the 'sysLocation' variable, 
+        # as the syslocation token is configured in the
+        # snmpd.conf file, which disables write access
+        # to the variable.
+        # Hence using the 'sysName' variable for the set tests.
+        varlist = netsnmp.VarList(
+            netsnmp.Varbind('sysName', '0', 'my newer name'))
+        res = sess.set(varlist)
+        print("v1 sess.set result: ", res, "\n")
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
-       
-        vals = sess.getnext(vars)
-        print "v2 sess.getnext result: ", vals, "\n"
+    def test_v1_walk_3(self):
+        print("\n")
+        print("---v1 walk3-------------------------------------\n")
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
-       
-        print "---v2c getbulk-------------------------------------\n"
+        sess = setup_v1()
+        varlist = netsnmp.VarList(netsnmp.Varbind('system'))
 
-        vars = netsnmp.VarList(netsnmp.Varbind('sysUpTime'),
-                               netsnmp.Varbind('sysORLastChange'),
-                               netsnmp.Varbind('sysORID'),
-                               netsnmp.Varbind('sysORDescr'),
-                               netsnmp.Varbind('sysORUpTime'))
+        vals = sess.walk(varlist)
+        print("v1 sess.walk result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
 
-        vals = sess.getbulk(2, 8, vars)
-        print "v2 sess.getbulk result: ", vals, "\n"
+        for var in varlist:
+            print("  ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
+    def test_v1_walk_4(self):
+        print("\n")
+        print("---v1 walk4-------------------------------------\n")
 
-        print "---v2c set-------------------------------------\n"
+        sess = setup_v1()
+        varlist = netsnmp.VarList(netsnmp.Varbind('.1'))
 
-        vars = netsnmp.VarList(
-            netsnmp.Varbind('sysLocation','0','my even newer location'))
-        
-        res = sess.set(vars)
-        print "v2 sess.set result: ", res, "\n"
+        vals = sess.walk(varlist)
+        print("v1 sess.walk length: ", len(vals), "\n")
+        self.assertTrue(len(vals) > 0)
 
-        print "---v2c walk-------------------------------------\n"
-        vars = netsnmp.VarList(netsnmp.Varbind('system'))
-                
-        vals = sess.walk(vars)
-        print "v2 sess.walk result: ", vals, "\n"
-        
-        for var in vars:
-            print "  ",var.tag, var.iid, "=", var.val, '(',var.type,')'
-            
-        print "---v3 setup-------------------------------------\n"
-        sess = netsnmp.Session(Version=3,
-                               DestHost='localhost',
-                               SecLevel='authPriv',
-                               SecName='initial',
-                               PrivPass='priv_pass',
-                               AuthPass='auth_pass')
+    def test_v2c_get(self):
+        print("\n")
+        print("---v2c get-------------------------------------\n")
 
-        sess.UseSprintValue = 1
+        sess = setup_v2()
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
+                                  netsnmp.Varbind('sysContact', 0),
+                                  netsnmp.Varbind('sysLocation', 0))
+        vals = sess.get(varlist)
+        print("v2 sess.get result: ", vals, "\n")
+        self.assertEqual(len(vals), 3)
 
-        vars = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
-                               netsnmp.Varbind('sysContact', 0),
-                               netsnmp.Varbind('sysLocation', 0))
-        print "---v3 get-------------------------------------\n"
-        vals = sess.get(vars)
-        print "v3 sess.get result: ", vals, "\n"
-        
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
+    def test_v2c_getnext(self):
+        print("\n")
+        print("---v2c getnext-------------------------------------\n")
 
-        print "---v3 getnext-------------------------------------\n"
-       
-        vals = sess.getnext(vars)
-        print "v3 sess.getnext result: ", vals, "\n"
+        sess = setup_v2()
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
+                                  netsnmp.Varbind('sysContact', 0),
+                                  netsnmp.Varbind('sysLocation', 0))
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNone(var.type)
+            self.assertIsNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
-       
-        vars = netsnmp.VarList(netsnmp.Varbind('sysUpTime'),
-                               netsnmp.Varbind('sysORLastChange'),
-                               netsnmp.Varbind('sysORID'),
-                               netsnmp.Varbind('sysORDescr'),
-                               netsnmp.Varbind('sysORUpTime'))
+        vals = sess.getnext(varlist)
+        print("v2 sess.getnext result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
 
-        vals = sess.getbulk(2, 8, vars)
-        print "v3 sess.getbulk result: ", vals, "\n"
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertTrue(var.tag.find('.') >= 0)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
+    def test_v2c_getbulk(self):
+        print("\n")
+        print("---v2c getbulk-------------------------------------\n")
 
-        print "---v3 set-------------------------------------\n"
+        sess = setup_v2()
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime'),
+                                  netsnmp.Varbind('sysORLastChange'),
+                                  netsnmp.Varbind('sysORID'),
+                                  netsnmp.Varbind('sysORDescr'),
+                                  netsnmp.Varbind('sysORUpTime'))
 
-        vars = netsnmp.VarList(
-            netsnmp.Varbind('sysLocation','0', 'my final destination'))
-        res = sess.set(vars)
-        print "v3 sess.set result: ", res, "\n"
-        
-        print "---v3 walk-------------------------------------\n"
-        vars = netsnmp.VarList(netsnmp.Varbind('system'))
-                
-        vals = sess.walk(vars)
-        print "v3 sess.walk result: ", vals, "\n"
-        
-        for var in vars:
-            print "  ",var.tag, var.iid, "=", var.val, '(',var.type,')'
+        vals = sess.getbulk(2, 8, varlist)
+        print("v2 sess.getbulk result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
+
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertTrue(var.tag.find('.') >= 0)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
+
+    def test_v2c_set(self):
+        print("\n")
+        print("---v2c set-------------------------------------\n")
+
+        sess = setup_v2()
+        # snmpset fails for the 'sysLocation' variable, 
+        # as the syslocation token is configured in the
+        # snmpd.conf file, which disables write access
+        # to the variable.
+        # Hence using the 'sysName' variable for the set tests.
+        varlist = netsnmp.VarList(
+            netsnmp.Varbind('sysName', '0', 'my even newer name'))
+
+        res = sess.set(varlist)
+        print("v2 sess.set result: ", res, "\n")
+        self.assertEqual(res, 1)
+
+    def test_v2c_walk(self):
+        print("\n")
+        print("---v2c walk-------------------------------------\n")
+
+        sess = setup_v2()
+
+        varlist = netsnmp.VarList(netsnmp.Varbind('system'))
+
+        vals = sess.walk(varlist)
+        print("v2 sess.walk result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
+
+        for var in varlist:
+            print("  ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+
+    def test_v3_get(self):
+        print("\n")
+        sess = setup_v3();
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
+                                  netsnmp.Varbind('sysContact', 0),
+                                  netsnmp.Varbind('sysLocation', 0))
+        print("---v3 get-------------------------------------\n")
+        vals = sess.get(varlist)
+        print("v3 sess.get result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
+
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
+
+    def test_v3_getnext(self):
+        print("\n")
+        print("---v3 getnext-------------------------------------\n")
+
+        sess = setup_v3();
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime', 0),
+                                  netsnmp.Varbind('sysContact', 0),
+                                  netsnmp.Varbind('sysLocation', 0))
+        vals = sess.getnext(varlist)
+        print("v3 sess.getnext result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
+
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
+
+    def test_v3_getbulk(self):
+        sess = setup_v3();
+        varlist = netsnmp.VarList(netsnmp.Varbind('sysUpTime'),
+                                  netsnmp.Varbind('sysORLastChange'),
+                                  netsnmp.Varbind('sysORID'),
+                                  netsnmp.Varbind('sysORDescr'),
+                                  netsnmp.Varbind('sysORUpTime'))
+
+        vals = sess.getbulk(2, 8, varlist)
+        print("v3 sess.getbulk result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
+
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
+
+    def test_v3_set(self):
+        print("\n")
+        print("---v3 set-------------------------------------\n")
+
+        sess = setup_v3();
+        # snmpset fails for the 'sysLocation' variable, 
+        # as the syslocation token is configured in the
+        # snmpd.conf file, which disables write access
+        # to the variable.
+        # Hence using the 'sysName' variable for the set tests.
+        varlist = netsnmp.VarList(
+            netsnmp.Varbind('sysName', '0', 'my final name'))
+        res = sess.set(varlist)
+        print("v3 sess.set result: ", res, "\n")
+        self.assertEqual(res, 1)
+
+    def test_v3_walk(self):
+        print("\n")
+        print("---v3 walk-------------------------------------\n")
+        sess = setup_v3();
+        varlist = netsnmp.VarList(netsnmp.Varbind('system'))
+
+        vals = sess.walk(varlist)
+        print("v3 sess.walk result: ", vals, "\n")
+        self.assertTrue(len(vals) > 0)
+
+        for var in varlist:
+            print("  ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
 
 
 class SetTests(unittest.TestCase):
-    def testFuncs(self):        
-        print "\n-------------- SET Test Start ----------------------------\n"
+    """SNMP set tests for the Net-SNMP Python interface"""
+    def testFuncs(self):
+        """Test code"""
+        print("\n-------------- SET Test Start ----------------------------\n")
 
-        var = netsnmp.Varbind('sysUpTime','0')
-        res = netsnmp.snmpget(var, Version = 1, DestHost='localhost',
-                        Community='public')
-        print "uptime = ", res[0]
+        var = netsnmp.Varbind('sysUpTime', '0')
+        res = netsnmp.snmpget(var, **snmp_dest())
+        print("uptime = ", res[0])
+        self.assertEqual(len(res), 1)
 
-        
-        var = netsnmp.Varbind('versionRestartAgent','0', 1)
-        res = netsnmp.snmpset(var, Version = 1, DestHost='localhost',
-                        Community='public')
 
-        var = netsnmp.Varbind('sysUpTime','0')
-        res = netsnmp.snmpget(var, Version = 1, DestHost='localhost',
-                        Community='public')
-        print "uptime = ", res[0]
+        var = netsnmp.Varbind('versionRestartAgent', '0', 1)
+        res = netsnmp.snmpset(var, **snmp_dest())
+        self.assertEqual(res, 1)
+
+        var = netsnmp.Varbind('sysUpTime', '0')
+        res = netsnmp.snmpget(var, **snmp_dest())
+        print("uptime = ", res[0])
+        self.assertEqual(len(res), 1)
 
         var = netsnmp.Varbind('nsCacheEntry')
-        res = netsnmp.snmpgetnext(var, Version = 1, DestHost='localhost',
-                        Community='public')
-        print "var = ", var.tag, var.iid, "=", var.val, '(',var.type,')'
+        res = netsnmp.snmpgetnext(var, **snmp_dest())
+        print("var = ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        self.assertEqual(len(res), 1)
 
         var.val = 65
-        res = netsnmp.snmpset(var, Version = 1, DestHost='localhost',
-                        Community='public')
-        res = netsnmp.snmpget(var, Version = 1, DestHost='localhost',
-                        Community='public')
-        print "var = ", var.tag, var.iid, "=", var.val, '(',var.type,')'
+        res = netsnmp.snmpset(var, **snmp_dest())
+        self.assertEqual(res, 1)
+        res = netsnmp.snmpget(var, **snmp_dest())
+        print("var = ", var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0], '65');
 
-        sess = netsnmp.Session(Version = 1, DestHost='localhost',
-                        Community='public')
+        sess = setup_v1()
 
-        vars = netsnmp.VarList(netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.2.116.101.115.116','','.1.3.6.1.6.1.1'),
-                              netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.3.116.101.115.116','','1234'),
-                              netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.9.116.101.115.116','', 4))
-        res = sess.set(vars)
+        varlist = netsnmp.VarList(
+            netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.2.116.101.115.116', '', '.1.3.6.1.6.1.1'),
+            netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.3.116.101.115.116', '', '1234'),
+            netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.9.116.101.115.116', '', 4))
+        res = sess.set(varlist)
 
-        print "res = ", res
+        print("res = ", res)
+        self.assertEqual(res, 1)
 
-        vars = netsnmp.VarList(netsnmp.Varbind('snmpTargetAddrTDomain'),
-                               netsnmp.Varbind('snmpTargetAddrTAddress'),
-                               netsnmp.Varbind('snmpTargetAddrRowStatus'))
+        varlist = netsnmp.VarList(netsnmp.Varbind('snmpTargetAddrTDomain'),
+                                  netsnmp.Varbind('snmpTargetAddrTAddress'),
+                                  netsnmp.Varbind('snmpTargetAddrRowStatus'))
 
-        res = sess.getnext(vars)
+        res = sess.getnext(varlist)
+        self.assertEqual(len(res), 3)
+        self.assertEqual(varlist[0].tag, 'snmpTargetAddrTDomain')
+        self.assertEqual(varlist[0].iid, '116.101.115.116')
+        self.assertEqual(varlist[0].val, '.1.3.6.1.6.1.1')
+        self.assertEqual(varlist[1].tag, 'snmpTargetAddrTAddress')
+        self.assertEqual(varlist[1].iid, '116.101.115.116')
+        self.assertEqual(varlist[1].val, '1234')
+        self.assertEqual(varlist[2].tag, 'snmpTargetAddrRowStatus')
+        self.assertEqual(varlist[2].iid, '116.101.115.116')
+        self.assertEqual(varlist[2].val, '3')
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
 
-        vars = netsnmp.VarList(netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.9.116.101.115.116','', 6))      
+        varlist = netsnmp.VarList(
+            netsnmp.Varbind('.1.3.6.1.6.3.12.1.2.1.9.116.101.115.116', '', 6))
 
-        res = sess.set(vars)
+        res = sess.set(varlist)
 
-        print "res = ", res
+        print("res = ", res)
+        self.assertEqual(res, 1)
 
-        vars = netsnmp.VarList(netsnmp.Varbind('snmpTargetAddrTDomain'),
-                               netsnmp.Varbind('snmpTargetAddrTAddress'),
-                               netsnmp.Varbind('snmpTargetAddrRowStatus'))
+        varlist = netsnmp.VarList(netsnmp.Varbind('snmpTargetAddrTDomain'),
+                                  netsnmp.Varbind('snmpTargetAddrTAddress'),
+                                  netsnmp.Varbind('snmpTargetAddrRowStatus'))
 
-        res = sess.getnext(vars)
+        res = sess.getnext(varlist)
+        self.assertEqual(len(res), 3)
+        self.assertNotEqual(varlist[0].tag, 'snmpTargetAddrTDomain')
+        self.assertNotEqual(varlist[1].tag, 'snmpTargetAddrTAddress')
+        self.assertNotEqual(varlist[2].tag, 'snmpTargetAddrRowStatus')
 
-        for var in vars:
-            print var.tag, var.iid, "=", var.val, '(',var.type,')'
-        print "\n"
+        for var in varlist:
+            self.assertIsNotNone(var.tag)
+            self.assertIsNotNone(var.iid)
+            self.assertIsNotNone(var.type)
+            self.assertIsNotNone(var.val)
+            print(var.tag, var.iid, "=", var.val, '(', var.type, ')')
+        print("\n")
 
-        print "\n-------------- SET Test End ----------------------------\n"
-        
+        print("\n-------------- SET Test End ----------------------------\n")
 
-if __name__=='__main__':
+
+class HexStringGet(unittest.TestCase):
+    """SNMP hex string tests for the Net-SNMP Python interface"""
+    def testFunc(self):
+        """HexStringGet"""
+        session = setup_v2()
+
+        # snmpEngineID.0
+        varlist = netsnmp.VarList(netsnmp.Varbind('.1.3.6.1.6.3.10.2.1.1.0'))
+        session.get(varlist)
+        for var in varlist:
+            print(var)
+        self.assertEqual(varlist[0].iid, '0');
+        self.assertEqual(varlist[0].type, 'OCTETSTR');
+
+class HexStringGetNext(unittest.TestCase):
+    """SNMP hex string tests for the Net-SNMP Python interface"""
+    def testFunc(self):
+        """HexStringGetNext"""
+        session = setup_v2()
+
+        varlist = netsnmp.VarList(netsnmp.Varbind('.1.3.6.1.6.3.10'))
+        session.walk(varlist)
+        for var in varlist:
+            print(var)
+        self.assertEqual(varlist[0].iid, '0');
+
+class HexStringSet(unittest.TestCase):
+    """SNMP hex string tests for the Net-SNMP Python interface"""
+    def testFunc(self):
+        """HexStringSet"""
+        session = setup_v2()
+
+        varlist = netsnmp.VarList(netsnmp.Varbind('.1.3.6.1.6.3.10.2.1.1.0'))
+        session.get(varlist)
+        print("varlist length =", len(varlist))
+        for var in varlist:
+            print(var)
+        self.assertEqual(varlist[0].iid, '0');
+        res = netsnmp.snmpset(var, **snmp_dest());
+        print("first SNMP set result:", res)
+        self.assertEqual(res, 0)
+        var.val = ""
+        res = netsnmp.snmpset(var, **snmp_dest());
+        print("second SNMP set result:", res)
+        self.assertEqual(res, 0)
+
+if __name__ == '__main__':
     unittest.main()

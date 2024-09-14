@@ -2,17 +2,25 @@
  * @file large_fd_set.c
  *
  * @brief Macro's and functions for manipulation of large file descriptor sets.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
-
 #include <net-snmp/net-snmp-config.h>
+
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#else
+#error broken
+#endif
 
 #include <stdio.h>
 #include <string.h> /* memset(), which is invoked by FD_ZERO() */
 
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+#include <stddef.h>
 
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/library/snmp_assert.h>
@@ -32,18 +40,18 @@ netsnmp_large_fd_setfd(SOCKET fd, netsnmp_large_fd_set * fdset)
 
     netsnmp_assert(fd != INVALID_SOCKET);
 
-    if (fdset->lfs_set.fd_count == fdset->lfs_setsize)
+    if (fdset->lfs_setptr->fd_count == fdset->lfs_setsize)
         netsnmp_large_fd_set_resize(fdset, 2 * (fdset->lfs_setsize + 1));
 
-    for (i = 0; i < fdset->lfs_set.fd_count; i++) {
-        if (fdset->lfs_set.fd_array[i] == (SOCKET) (fd))
+    for (i = 0; i < fdset->lfs_setptr->fd_count; i++) {
+        if (fdset->lfs_setptr->fd_array[i] == fd)
             break;
     }
 
-    if (i == fdset->lfs_set.fd_count
-        && fdset->lfs_set.fd_count < fdset->lfs_setsize) {
-        fdset->lfs_set.fd_count++;
-        fdset->lfs_set.fd_array[i] = fd;
+    if (i == fdset->lfs_setptr->fd_count &&
+        fdset->lfs_setptr->fd_count < fdset->lfs_setsize) {
+        fdset->lfs_setptr->fd_count++;
+        fdset->lfs_setptr->fd_array[i] = fd;
     }
 }
 
@@ -54,14 +62,14 @@ netsnmp_large_fd_clr(SOCKET fd, netsnmp_large_fd_set * fdset)
 
     netsnmp_assert(fd != INVALID_SOCKET);
 
-    for (i = 0; i < fdset->lfs_set.fd_count; i++) {
-        if (fdset->lfs_set.fd_array[i] == fd) {
-            while (i < fdset->lfs_set.fd_count - 1) {
-                fdset->lfs_set.fd_array[i] =
-                    fdset->lfs_set.fd_array[i + 1];
+    for (i = 0; i < fdset->lfs_setptr->fd_count; i++) {
+        if (fdset->lfs_setptr->fd_array[i] == fd) {
+            while (i < fdset->lfs_setptr->fd_count - 1) {
+                fdset->lfs_setptr->fd_array[i] =
+                    fdset->lfs_setptr->fd_array[i + 1];
                 i++;
             }
-            fdset->lfs_set.fd_count--;
+            fdset->lfs_setptr->fd_count--;
             break;
         }
     }
@@ -74,8 +82,8 @@ netsnmp_large_fd_is_set(SOCKET fd, netsnmp_large_fd_set * fdset)
 
     netsnmp_assert(fd != INVALID_SOCKET);
 
-    for (i = 0; i < fdset->lfs_set.fd_count; i++) {
-        if (fdset->lfs_set.fd_array[i] == fd)
+    for (i = 0; i < fdset->lfs_setptr->fd_count; i++) {
+        if (fdset->lfs_setptr->fd_array[i] == fd)
             return 1;
     }
     return 0;
@@ -83,13 +91,29 @@ netsnmp_large_fd_is_set(SOCKET fd, netsnmp_large_fd_set * fdset)
 
 #else
 
-/*
- * Recent versions of glibc trigger abort() if FD_SET(), FD_CLR() or
- * FD_ISSET() is invoked with n >= FD_SETSIZE. Hence these replacement macros.
- */
-#define LFD_SET(n, p)    ((p)->fds_bits[(n)/NFDBITS] |=  (1ULL << ((n) % NFDBITS)))
-#define LFD_CLR(n, p)    ((p)->fds_bits[(n)/NFDBITS] &= ~(1ULL << ((n) % NFDBITS)))
-#define LFD_ISSET(n, p)  ((p)->fds_bits[(n)/NFDBITS] &   (1ULL << ((n) % NFDBITS)))
+NETSNMP_STATIC_INLINE void LFD_SET(unsigned n, fd_set *p)
+{
+    enum { nfdbits = 8 * sizeof(p->fds_bits[0]) };
+    NETSNMP_FD_MASK_TYPE *fds_array = p->fds_bits;
+
+    fds_array[n / nfdbits] |= (1ULL << (n % nfdbits));
+}
+
+NETSNMP_STATIC_INLINE void LFD_CLR(unsigned n, fd_set *p)
+{
+    enum { nfdbits = 8 * sizeof(p->fds_bits[0]) };
+    NETSNMP_FD_MASK_TYPE *fds_array = p->fds_bits;
+
+    fds_array[n / nfdbits] &= ~(1ULL << (n % nfdbits));
+}
+
+NETSNMP_STATIC_INLINE unsigned LFD_ISSET(unsigned n, const fd_set *p)
+{
+    enum { nfdbits = 8 * sizeof(p->fds_bits[0]) };
+    const NETSNMP_FD_MASK_TYPE *fds_array = p->fds_bits;
+
+    return (fds_array[n / nfdbits] & (1ULL << (n % nfdbits))) != 0;
+}
 
 void
 netsnmp_large_fd_setfd(int fd, netsnmp_large_fd_set * fdset)
@@ -139,6 +163,12 @@ netsnmp_large_fd_set_select(int numfds, netsnmp_large_fd_set *readfds,
                      netsnmp_large_fd_set *exceptfds,
                      struct timeval *timeout)
 {
+    NETSNMP_SELECT_TIMEVAL tmo;
+
+    if (timeout) {
+        tmo.tv_sec  = timeout->tv_sec;
+        tmo.tv_usec = timeout->tv_usec;
+    }
 #if defined(cygwin) || !defined(HAVE_WINSOCK_H)
     /* Bit-set representation: make sure all fds have at least size 'numfds'. */
     if (readfds && readfds->lfs_setsize < numfds)
@@ -151,11 +181,10 @@ netsnmp_large_fd_set_select(int numfds, netsnmp_large_fd_set *readfds,
     /* Array representation: no resizing is necessary. */
 #endif
 
-    return select(numfds,
-            readfds ? readfds->lfs_setptr : NULL,
-            writefds ? writefds->lfs_setptr : NULL,
-            exceptfds ? exceptfds->lfs_setptr : NULL,
-            timeout);
+    return select(numfds, (readfds) ? readfds->lfs_setptr : NULL,
+                  (writefds) ? writefds->lfs_setptr : NULL,
+                  (exceptfds) ? exceptfds->lfs_setptr : NULL,
+                  timeout ? &tmo : NULL);
 }
 
 int
@@ -204,8 +233,8 @@ netsnmp_large_fd_set_resize(netsnmp_large_fd_set * fdset, int setsize)
 
     fdset->lfs_setsize = setsize;
 #if !defined(cygwin) && defined(HAVE_WINSOCK_H)
-    if (setsize < fdset->lfs_set.fd_count)
-        fdset->lfs_set.fd_count = setsize;
+    if (setsize < fdset->lfs_setptr->fd_count)
+        fdset->lfs_setptr->fd_count = setsize;
 #endif
 success:
     return 1;
@@ -213,7 +242,7 @@ success:
 out_of_mem:
     fdset->lfs_setsize = 0;
 #if !defined(cygwin) && defined(HAVE_WINSOCK_H)
-    fdset->lfs_set.fd_count = 0;
+    fdset->lfs_setptr->fd_count = 0;
 #endif
     return 0;
 }

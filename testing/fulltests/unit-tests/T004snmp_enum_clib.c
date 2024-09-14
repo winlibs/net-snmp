@@ -1,5 +1,7 @@
 /* HEADER Testing snmp_enum */
 
+#ifndef NETSNMP_FEATURE_REMOVE_SNMP_ENUM_STORE_LIST
+
 #define CONFIG_TYPE "snmp-enum-unit-test"
 #define STRING1 "life, and everything"
 #define STRING2 "restaurant at the end of the universe"
@@ -30,7 +32,7 @@
 char tmp_persist_file[256];
 char *se_find_result;
 
-sprintf(tmp_persist_file, "/tmp/snmp-enum-unit-test-%d", getpid());
+sprintf(tmp_persist_file, "/tmp/snmp-enum-unit-test-%ld", (long)getpid());
 netsnmp_setenv("SNMP_PERSISTENT_FILE", tmp_persist_file, 1);
 
 init_snmp_enum("snmp");
@@ -82,8 +84,7 @@ OK(strcmp(se_find_label_in_slist("testing", 2), STRING2) == 0,
 se_clear_slist("testing");
 
 
-se_read_conf("enum",
-             NETSNMP_REMOVE_CONST(char *, "2:3 1:apple 2:pear 3:kiwifruit"));
+se_read_conf("enum", "2:3 1:apple 2:pear 3:kiwifruit");
 OK(se_find_list(2, 3), "list (2, 3) should be present");
 if (se_find_list(2, 3)) {
   OK(se_find_value(2, 3, "kiwifruit") == 3,
@@ -93,8 +94,7 @@ if (se_find_list(2, 3)) {
      "lookup by label should return the proper string");
 }
 
-se_read_conf("enum",
-             NETSNMP_REMOVE_CONST(char *, "fruit 1:apple 2:pear 3:kiwifruit"));
+se_read_conf("enum", "fruit 1:apple 2:pear 3:kiwifruit");
 OK(se_find_value_in_slist("fruit", "kiwifruit") == 3,
    "lookup by string should return the proper value");
 se_find_result = se_find_label_in_slist("fruit", 2);
@@ -103,3 +103,5 @@ OK(se_find_result && strcmp(se_find_result, "pear") == 0,
 
 clear_snmp_enum();
 unregister_all_config_handlers();
+
+#endif

@@ -10,34 +10,39 @@
  * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #include <net-snmp/net-snmp-config.h>
 
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_MALLOC_H
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
 #include <ctype.h>
 #include <sys/types.h>
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
 
@@ -49,11 +54,11 @@
 #include "vacm_vars.h"
 #include "util_funcs/header_generic.h"
 
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
@@ -103,7 +108,7 @@ init_vacm_vars(void)
          var_vacm_view, 3, {2, 1, 4}},
         {VIEWSTORAGE, ASN_INTEGER, NETSNMP_OLDAPI_RWRITE,
          var_vacm_view, 3, {2, 1, 5}},
-        {VIEWSTATUS, ASN_INTEGER, NETSNMP_OLDAPI_RWRITE,
+        {VACMVIEWSTATUS, ASN_INTEGER, NETSNMP_OLDAPI_RWRITE,
          var_vacm_view, 3, {2, 1, 6}},
     };
 
@@ -145,7 +150,7 @@ var_vacm_sec2group(struct variable * vp,
     struct vacm_groupEntry *gp;
     oid            *groupSubtree;
     ssize_t         groupSubtreeLen;
-    int             secmodel;
+    oid             secmodel;
     char            secname[VACMSTRINGLEN], *cp;
 
     /*
@@ -267,7 +272,7 @@ var_vacm_access(struct variable * vp,
                 int exact, size_t * var_len, WriteMethod ** write_method)
 {
     struct vacm_accessEntry *gp;
-    int             secmodel, seclevel;
+    oid             secmodel, seclevel;
     char            groupName[VACMSTRINGLEN] = { 0 };
     char            contextPrefix[VACMSTRINGLEN] = { 0 };
     oid            *op;
@@ -372,11 +377,12 @@ var_vacm_access(struct variable * vp,
             if (len > VACM_MAX_STRING)
                 return NULL;
             cp = groupName;
-            for (i = 0; i <= len; i++) {
+            for (i = 0; i <= len && op < name + *length; i++) {
                 if (*op > 255) {
-                    return NULL;   /* illegal value */
-                }
-                *cp++ = (char) *op++;
+                    *cp++ = (char) 255;
+                    ++op;
+                } else
+                    *cp++ = (char) *op++;
             }
             *cp = 0;
         }
@@ -386,11 +392,12 @@ var_vacm_access(struct variable * vp,
             if (len > VACM_MAX_STRING)
                 return NULL;
             cp = contextPrefix;
-            for (i = 0; i <= len; i++) {
+            for (i = 0; i <= len && op < name + *length; i++) {
                 if (*op > 255) {
-                    return NULL;   /* illegal value */
-                }
-                *cp++ = (char) *op++;
+                    *cp++ = (char) 255;
+                    ++op;
+                } else
+                    *cp++ = (char) *op++;
             }
             *cp = 0;
         }
@@ -515,7 +522,7 @@ var_vacm_view(struct variable * vp,
     case VIEWSTORAGE:
         *write_method = write_vacmViewStorageType;
         break;
-    case VIEWSTATUS:
+    case VACMVIEWSTATUS:
         *write_method = write_vacmViewStatus;
         break;
 #endif /* !NETSNMP_NO_WRITE_SUPPORT */ 
@@ -583,9 +590,10 @@ var_vacm_view(struct variable * vp,
                 cp = viewName;
                 for (i = 0; i <= len && op < name + *length; i++) {
                     if (*op > 255) {
-                        return NULL;
-                    }
-                    *cp++ = (char) *op++;
+                        *cp++ = (char) 255;
+                        ++op;
+                    } else
+                        *cp++ = (char) *op++;
                 }
                 *cp = 0;
             }
@@ -662,7 +670,7 @@ var_vacm_view(struct variable * vp,
         long_return = gp->viewStorageType;
         return (u_char *) & long_return;
 
-    case VIEWSTATUS:
+    case VACMVIEWSTATUS:
         long_return = gp->viewStatus;
         return (u_char *) & long_return;
     }
@@ -989,6 +997,9 @@ access_parse_oid(oid * oidIndex, size_t oidLen,
         return 1;
     }
     groupNameL = oidIndex[0];
+    if ((groupNameL + 1) > (int) oidLen) {
+        return 1;
+    }
     contextPrefixL = oidIndex[groupNameL + 1];  /* the initial name length */
     if ((int) oidLen != groupNameL + contextPrefixL + 4) {
         return 1;

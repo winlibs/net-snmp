@@ -5,9 +5,11 @@
 #ifndef _MIBGROUP_TCPTABLE_H
 #define _MIBGROUP_TCPTABLE_H
 
-config_arch_require(solaris2, kernel_sunos5)
+#ifdef solaris2
+config_require(kernel_sunos5);
+#endif
 #if !defined(NETSNMP_ENABLE_MFD_REWRITES)
-config_require(mibII/ip)
+config_require(mibII/ip);
 #endif
 
 #ifdef linux
@@ -34,5 +36,9 @@ extern Netsnmp_Next_Data_Point  tcpTable_next_entry;
 #define TCPCONNLOCALPORT     3
 #define TCPCONNREMOTEADDRESS 4
 #define TCPCONNREMOTEPORT    5
+
+#ifndef NETSNMP_FEATURE_REMOVE_TCP_COUNT_CONNECTIONS
+int TCP_Count_Connections(void);
+#endif /* NETSNMP_FEATURE_REMOVE_TCP_COUNT_CONNECTIONS */
 
 #endif                          /* _MIBGROUP_TCPTABLE_H */

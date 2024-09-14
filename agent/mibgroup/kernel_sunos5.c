@@ -4,7 +4,7 @@
  */
 /*
  * Portions of this file are copyrighted by:
- * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
+ * Copyright Â© 2003 Sun Microsystems, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
  */
@@ -82,7 +82,7 @@ kstat_ctl_t    *kstat_fd = 0;
 static
 mibcache        Mibcache[MIBCACHE_SIZE+1] = {
     {MIB_SYSTEM, 0, (void *) -1, 0, 0, 0, 0},
-    {MIB_INTERFACES, 50 * sizeof(mib2_ifEntry_t), (void *) -1, 0, 30, 0,
+    {MIB_INTERFACES, 50 * sizeof(mib2_ifEntry_t), (void *) -1, 0, 3, 0,
      0},
     {MIB_AT, 0, (void *) -1, 0, 0, 0, 0},
     {MIB_IP, sizeof(mib2_ip_t), (void *) -1, 0, 60, 0, 0},
@@ -191,19 +191,17 @@ set_if_info(mib2_ifEntry_t *ifp, unsigned index, char *name, uint64_t flags,
             int mtu);
 static int get_if_stats(mib2_ifEntry_t *ifp);
 
-#if defined(HAVE_IF_NAMEINDEX) && defined(NETSNMP_INCLUDE_IFTABLE_REWRITES)
+#if defined(HAVE_IF_NAMEINDEX)
 static int _dlpi_open(const char *devname);
 static int _dlpi_get_phys_address(int fd, char *paddr, int maxlen,
                                   int *paddrlen);
 static int _dlpi_get_iftype(int fd, unsigned int *iftype);
 static int _dlpi_attach(int fd, int ppa);
 static int _dlpi_parse_devname(char *devname, int *ppap);
-#endif
-
-
-
+#else
 static int
 Name_cmp(void *, void *);
+#endif
 
 static void
 init_mibcache_element(mibcache * cp);
@@ -257,14 +255,10 @@ void
 init_kernel_sunos5(void)
 {
     static int creg   = 0;
-    const  int period = 30;
+    const  int period = 3;
     int    alarm_id   = 0;
 
     if (creg == 0) {
-	alarm_id = snmp_alarm_register(5, NULL, kernel_sunos5_cache_age,
-                                       NULL);
-	DEBUGMSGTL(("kernel_sunos5", "registered alarm %d with period 5s\n", 
-		    alarm_id));
 	alarm_id = snmp_alarm_register(period, SA_REPEAT, 
                                        kernel_sunos5_cache_age,
                                        (void *)period);
@@ -309,7 +303,8 @@ getKstatInt(const char *classname, const char *statname,
     if ((ksc = kstat_fd) == NULL) {
 	goto Return;
     }
-    ks = kstat_lookup(ksc, classname, -1, statname);
+    ks = kstat_lookup(ksc, NETSNMP_REMOVE_CONST(char *, classname),
+                      -1, NETSNMP_REMOVE_CONST(char *, statname));
     if (ks == NULL) {
 	DEBUGMSGTL(("kernel_sunos5", "class %s, stat %s not found\n",
 		classname ? classname : "NULL",
@@ -322,7 +317,7 @@ getKstatInt(const char *classname, const char *statname,
 		classname ? classname : "NULL", statname ? statname : "NULL"));
 	goto Return;
     }
-    named = kstat_data_lookup(ks, varname);
+    named = kstat_data_lookup(ks, NETSNMP_REMOVE_CONST(char *, varname));
     if (named == NULL) {
 	DEBUGMSGTL(("kernel_sunos5", "no var %s for class %s stat %s\n",
 		varname, classname ? classname : "NULL",
@@ -412,7 +407,8 @@ getKstat(const char *statname, const char *varname, void *value)
      * contain all available modules. 
      */
 
-    if ((ks = kstat_lookup(ksc, "unix", 0, "kstat_headers")) == NULL) {
+    if ((ks = kstat_lookup(ksc, NETSNMP_REMOVE_CONST(char *, "unix"),
+                           0, NETSNMP_REMOVE_CONST(char *, "kstat_headers"))) == NULL) {
 	ret = -10;
 	goto Return;        /* kstat errors */
     }
@@ -446,7 +442,8 @@ getKstat(const char *statname, const char *varname, void *value)
     /*
      * Get the named statistics 
      */
-    if ((ks = kstat_lookup(ksc, module_name, instance, statname)) == NULL) {
+    if ((ks = kstat_lookup(ksc, module_name, instance,
+                           NETSNMP_REMOVE_CONST(char *, statname))) == NULL) {
 	ret = -10;
 	goto Return;        /* kstat errors */
     }
@@ -567,7 +564,8 @@ getKstatString(const char *statname, const char *varname,
      * contain all available modules.
      */
 
-    if ((ks = kstat_lookup(ksc, "unix", 0, "kstat_headers")) == NULL) {
+    if ((ks = kstat_lookup(ksc, NETSNMP_REMOVE_CONST(char *, "unix"),
+                           0, NETSNMP_REMOVE_CONST(char *, "kstat_headers"))) == NULL) {
         ret = -10;
         goto Return;        /* kstat errors */
     }
@@ -601,7 +599,8 @@ getKstatString(const char *statname, const char *varname,
     /*
      * Get the named statistics
      */
-    if ((ks = kstat_lookup(ksc, module_name, instance, statname)) == NULL) {
+    if ((ks = kstat_lookup(ksc, module_name, instance,
+                           NETSNMP_REMOVE_CONST(char *, statname))) == NULL) {
         ret = -10;
         goto Return;        /* kstat errors */
     }
@@ -1028,6 +1027,7 @@ getmib(int groupname, int subgroupname, void **statbuf, size_t *size,
 		    break;
 		}
 		strbuf.buf = (char *)*statbuf + (oldsize - strbuf.len);
+		/* fallthrough */
 	    case 0:
 		/* fix buffer to real size & position */
 		strbuf.len += strbuf.buf - (char*)*statbuf;
@@ -1072,11 +1072,10 @@ getmib(int groupname, int subgroupname, void **statbuf, size_t *size,
  * to be substituted later if SunSoft decides to extend its mib2 interface.
  */
 
-#if defined(HAVE_IF_NAMEINDEX) && defined(NETSNMP_INCLUDE_IFTABLE_REWRITES)
+#if defined(HAVE_IF_NAMEINDEX)
 
 /*
- * If IFTABLE_REWRITES is enabled, then we will also rely on DLPI to obtain
- * information from the NIC.
+ * Use DLPI to obtain information from the NIC.
  */
 
 /*
@@ -1405,7 +1404,7 @@ getif(mib2_ifEntry_t *ifbuf, size_t size, req_e req_type,
      ifnp->if_index != 0 && (i < nentries); ifnp++) {
 
         DEBUGMSGTL(("kernel_sunos5", "...... getif %s\n", ifnp->if_name));
-        memcpy(lifrp->lifr_name, ifnp->if_name, LIFNAMSIZ);
+        strlcpy(lifrp->lifr_name, ifnp->if_name, LIFNAMSIZ);
         if_isv6 = B_FALSE;
 
         if (ioctl(ifsd, SIOCGLIFFLAGS, lifrp) < 0) {
@@ -1620,13 +1619,14 @@ getif(mib2_ifEntry_t *ifbuf, size_t size, req_e req_type,
     close(ifsd);
     return ret;
 }
-#endif /*defined(HAVE_IF_NAMEINDEX)&&defined(NETSNMP_INCLUDE_IFTABLE_REWRITES)*/
+#endif /*defined(HAVE_IF_NAMEINDEX)*/
 
 static void
 set_if_info(mib2_ifEntry_t *ifp, unsigned index, char *name, uint64_t flags,
             int mtu)
 { 
     boolean_t havespeed = B_FALSE;
+    uint64_t ifspeed = 0;
 
     /*
      * Set basic information 
@@ -1640,26 +1640,32 @@ set_if_info(mib2_ifEntry_t *ifp, unsigned index, char *name, uint64_t flags,
     ifp->flags = flags;
     ifp->ifMtu = mtu;
     ifp->ifSpeed = 0;
+    ifp->ifHighSpeed = 0;
 
     /*
      * Get link speed
      */
-    if ((getKstatInt(NULL, name, "ifspeed", &ifp->ifSpeed) == 0)) {
+    if ((getKstat(name, "ifspeed", &ifspeed) == 0)) {
         /*
          * check for SunOS patch with half implemented ifSpeed 
          */
-        if (ifp->ifSpeed > 0 && ifp->ifSpeed < 10000) {
-            ifp->ifSpeed *= 1000000;
+        if (ifspeed > 0 && ifspeed < 10000) {
+            ifspeed *= 1000000;
         }
 	havespeed = B_TRUE;
-    } else if (getKstatInt(NULL, name, "ifSpeed", &ifp->ifSpeed) == 0) {
+    } else if (getKstat(name, "ifSpeed", &ifspeed) == 0) {
         /*
          * this is good 
          */
 	havespeed = B_TRUE;
-    } else if (getKstatInt("link", name, "ifspeed", &ifp->ifSpeed) == 0) {
-	havespeed = B_TRUE;
     }
+
+    if (ifspeed > 0xffffffff) {
+        ifp->ifSpeed = 0xffffffff;
+    } else {
+        ifp->ifSpeed = ifspeed;
+    }
+    ifp->ifHighSpeed = ifspeed / 1000000;
 
     /* make ifOperStatus depend on link status if available */
     if (ifp->ifAdminStatus == 1) {
@@ -1763,7 +1769,7 @@ set_if_info(mib2_ifEntry_t *ifp, unsigned index, char *name, uint64_t flags,
 static int 
 get_if_stats(mib2_ifEntry_t *ifp)
 {
-    Counter l_tmp;
+    int l_tmp;
     char *name = ifp->ifDescr.o_bytes;
 
     if (strchr(name, ':'))
@@ -1850,6 +1856,7 @@ Get_everything(void *x, void *y)
     return 0;             /* Always TRUE */
 }
 
+#if !defined(HAVE_IF_NAMEINDEX)
 /*
  * Compare name and IP address of the interface to ARP table entry.
  * Needed to obtain the physical address of the interface in getif.
@@ -1870,6 +1877,7 @@ Name_cmp(void *ifrp, void *ep)
 	return 1;
     }
 }
+#endif
 
 /*
  * Try to determine the index of a particular interface. If mfd-rewrites is
@@ -2070,20 +2078,3 @@ main(int argc, char **argv)
 }
 #endif /*_GETMIBSTAT_TEST */
 #endif                          /* SUNOS5 */
-
-
-/*-
- * These variables describe the formatting of this file.  If you don't like the
- * template defaults, feel free to change them here (not in your .emacs file).
- *
- * Local Variables:
- * comment-column: 32
- * c-indent-level: 4
- * c-continued-statement-offset: 4
- * c-brace-offset: -4
- * c-argdecl-indent: 0
- * c-label-offset: -4
- * fill-column: 79
- * fill-prefix: " * "
- * End:
- */

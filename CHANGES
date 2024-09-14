@@ -3,6 +3,331 @@ that have been applied in released versions.  Please see the NEWS file for
 a summary of the major changes, and the ChangeLog file for a comprehensive
 listing of all changes made to the code.
 
+*5.9.4*:
+
+    IMPORTANT: SNMP over TLS and/or DTLS are not functioning properly
+    in this release with various versions of OpenSSL and will be fixed
+    in a future release.
+
+    libsnmp:
+      - Remove the SNMP_SWIPE_MEM() macro Remove this macro since it is not
+	used in the Net-SNMP code base.
+      - DISPLAY-HINT fixes
+      - Miscellanious improvements to the transports
+      - Handle multiple oldEngineID configuration lines 
+      - fixes for DNS names longer than 63 characters
+
+    agent:
+      - Added a ignoremount configuration option for the HOST-MIB
+      - disallow SETs with a NULL varbind
+      - fix the --enable-minimalist build
+
+    apps:
+      - snmpset: allow SET with NULL varbind for testing
+      - snmptrapd: improved MySQL logging code
+
+    general:
+      - configure: Remove -Wno-deprecated as it is no longer needed
+      - miscellanious ther bug fixes, build fixes and cleanups
+
+*5.9.3*:
+    security:
+      - These two CVEs can be exploited by a user with read-only credentials:
+          - CVE-2022-24805 A buffer overflow in the handling of the INDEX of
+            NET-SNMP-VACM-MIB can cause an out-of-bounds memory access.
+          - CVE-2022-24809 A malformed OID in a GET-NEXT to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - These CVEs can be exploited by a user with read-write credentials:
+          - CVE-2022-24806 Improper Input Validation when SETing malformed
+            OIDs in master agent and subagent simultaneously
+          - CVE-2022-24807 A malformed OID in a SET request to
+            SNMP-VIEW-BASED-ACM-MIB::vacmAccessTable can cause an
+            out-of-bounds memory access.
+          - CVE-2022-24808 A malformed OID in a SET request to
+            NET-SNMP-AGENT-MIB::nsLogTable can cause a NULL pointer dereference
+          - CVE-2022-24810 A malformed OID in a SET to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - To avoid these flaws, use strong SNMPv3 credentials and do not share them.
+        If you must use SNMPv1 or SNMPv2c, use a complex community string
+        and enhance the protection by restricting access to a given IP address range.
+      - Thanks are due to Yu Zhang of VARAS@IIE and Nanyu Zhong of VARAS@IIE for
+        reporting the following CVEs that have been fixed in this release, and
+        to Arista Networks for providing fixes.
+
+    Windows:
+      - WinExtDLL: Fix multiple compiler warnings
+      - WinExtDLL: Make long strings occupy a single line Make it easier to
+    look up error messages in the source code by making long strings
+    occupy a single source code line.
+      - WinExtDLL: Restore MIB-II support Make winExtDLL work on 64-bit
+    Windows systems") caused snmpd to skip MIB-II on 64-bit systems.
+
+    IF-MIB: Update ifTable entries even if the interface name has changed
+    At least on Linux a network interface index may be reused for a
+    network interface with a different name. Hence this patch that
+    enables replacing network interface information even if the network
+    interface name has changed.
+
+    unspecified:
+      - Moved transport code into a separate subdirectory in snmplib
+      - Snmplib: remove inline versions of container funcs".
+
+    misc:
+      - snmp-create-v3-user: Fix the snmpd.conf path   @datadir@ is
+    expanded in ${datarootdir} so datarootdir must be set before
+    @datadir@ is used.
+
+*5.9.2*:
+    security:
+      - These two CVEs can be exploited by a user with read-only credentials:
+          - CVE-2022-24805 A buffer overflow in the handling of the INDEX of
+            NET-SNMP-VACM-MIB can cause an out-of-bounds memory access.
+          - CVE-2022-24809 A malformed OID in a GET-NEXT to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - These CVEs can be exploited by a user with read-write credentials:
+          - CVE-2022-24806 Improper Input Validation when SETing malformed
+            OIDs in master agent and subagent simultaneously
+          - CVE-2022-24807 A malformed OID in a SET request to
+            SNMP-VIEW-BASED-ACM-MIB::vacmAccessTable can cause an
+            out-of-bounds memory access.
+          - CVE-2022-24808 A malformed OID in a SET request to
+            NET-SNMP-AGENT-MIB::nsLogTable can cause a NULL pointer dereference
+          - CVE-2022-24810 A malformed OID in a SET to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - To avoid these flaws, use strong SNMPv3 credentials and do not share them.
+        If you must use SNMPv1 or SNMPv2c, use a complex community string
+        and enhance the protection by restricting access to a given IP address range.
+      - Thanks are due to Yu Zhang of VARAS@IIE and Nanyu Zhong of VARAS@IIE for
+        reporting the following CVEs that have been fixed in this release, and
+        to Arista Networks for providing fixes.
+
+    Windows:
+      - WinExtDLL: Fix multiple compiler warnings
+      - WinExtDLL: Make long strings occupy a single line Make it easier to
+	look up error messages in the source code by making long strings
+	occupy a single source code line.
+      - WinExtDLL: Restore MIB-II support Make winExtDLL work on 64-bit
+	Windows systems") caused snmpd to skip MIB-II on 64-bit systems.
+
+    IF-MIB: Update ifTable entries even if the interface name has changed
+	At least on Linux a network interface index may be reused for a
+	network interface with a different name. Hence this patch that
+	enables replacing network interface information even if the network
+	interface name has changed.
+
+    unspecified:
+      - Moved transport code into a separate subdirectory in snmplib
+      - Snmplib: remove inline versions of container funcs".
+
+    misc:
+      - snmp-create-v3-user: Fix the snmpd.conf path   @datadir@ is
+	expanded in ${datarootdir} so datarootdir must be set before
+	@datadir@ is used.
+
+*5.9.1*:
+    General: Many bug fixes
+
+*5.9*
+    snmplib:
+      - Add IPv6 support to DTLSUDP transport
+      - use new netsnmp_sockaddr_storage in netsnmp_addr_pair
+      - add base_transport ptr for tunneled transports
+      - Add support for OpenSSL 1.1.1
+      - Dtls: overhaul of debug
+      - Remove inline versions of container funcs
+
+    snmpd:
+      - Use ETHTOOL_GLINKSETTINGS when available Newer Linux kernels
+	support ETHTOOL_GLINKSETTINGS. Use it when available instead of the
+	older and deprecated ETHTOOL_GSET. This patch avoids that the Linux
+	kernel reports the following kernel warning: warning: 'snmpd' uses
+	legacy ethtool link settings API, link modes are only partially
+	reported See also https://sourceforge.net/p/net-snmp/patches/1387/.
+	[bvanassche: reworked this patch significantly]
+      - Reduce the time needed to execute "pass" scripts on BSD systems See
+	also https://github.com/net-snmp/net-snmp/issues/8.
+      - [BUG 2926]: Make it possible to set agentXPingInterval for a
+	subagent - register agentXPingInterval for the subagent list
+	handler, before it was registered for snmp - added agentxTimeout to
+	the subagent list handler. It's now possible to set for snmpd and
+	the subagent. See 'man snmpd.conf' - added agentxRetries to the
+	subagent list handler. See 'man snmpd.conf'. It's never used in the
+	subagent, but it's now following the documentation Signed-off-by:
+	Anders Wallin <wallinux@gmail.com>
+
+    snmptrap:
+      - BUG: 2899: Patch from Drew Roedersheimer to set library
+	engineboots/time values before sending
+
+    snmptrapd:
+      - Add support for the latest libmysqlclient version
+
+    libsnmp:
+      - Scan MIB directories in alphabetical order This guarantees that
+	e.g. mibs/RFC1213-MIB.txt is read before mibs/SNMPv2-MIB.txt. The
+	order in which these MIBs is read matters because both define
+	sysLocation but with different attributes.
+
+    unspecified:
+      - [BUG 2930]: Fix a Solaris hrSWInst crash Avoid that snmpd crashes
+	on Solaris when querying software packages with an empty CATEGORY
+	field. See also https://sourceforge.net/p/net-snmp/bugs/2930/. See
+	also https://sourceforge.net/p/net-snmp/patches/1390/.
+
+    FreeBSD:
+      - Fix first byte of IF-MIB::ifPhysAddress   Don't write past the
+	interface name, and use temporary copy instead. This fixes the
+	first byte of ifPhysAddress always being 0 on FreeBSD. See also
+	https://sourceforge.net/p/net-snmp/code/merge-requests/20/. [
+	bvanassche: edited patch title / added test for malloc() result /
+	reduced number of free(if_name) calls ]
+
+    Win32:
+      - BUG: 2779541 Fixed handle leak in pass_persist.
+
+*5.8*
+    snmplib:
+      - [BUG 3444939]: BUG: 1796886: snmplib: Avoid that
+        sprint_realloc_octet_string() triggers a segmentation fault
+        strlcpy() implementations typically scan for the end of the source
+        argument passed to strlcpy(). Hence avoid passing an unterminated
+        string to strlcpy().
+      - Flush persistent config to persistent storage
+      - Asn1: BUG: 2828: from "Google Autofuzz project": fix off-by-one
+	heap access for opaque types   (and an adjacent bug that was not in
+	5.4, noticed by code inspection)
+      - Asn1: from "Google Autofuzz project": propagate error from
+	asn_parse_length
+      - TLS/DTLS fixes
+      - Add more openssl error cases where we check for local cert
+      - fix usm keychanges for new algorithms and longer keylengths
+      - fix some memory leaks in usm processing
+      - IP address formatting fixes
+      - Make the source code C89 compliant
+      - Fixed reporting 'error writing to /var/xxx/snmpapp.conf'. When a
+	client utility, such as snmptrap, tries to write to its persistent
+	configuration file (/var/net-snmp/snmpapp.conf in Fedora), do not
+	report any error when open() fails. The tool is typically run by
+	non-root, who cannot write to /var and the error just confuses
+	users. And when doing it, make sure that "snmpapp" string is
+	defined only on one place, just in case.
+      - BUG: 2622: Fix excessive indents in log file
+
+    snmpd:
+      - SNMP-TARGET-MIB: Fix snmpTargetAddrTAddress
+      - [BUG 2815]: Display UTF-8 characters again
+      - [BUG 3444939]: BUG: 1796886: snmplib: Avoid that
+	sprint_realloc_octet_string() embeds unprintable control characters
+	or binary zeroes in its output. This behavior could cause truncated
+	output in snmptrapd.")
+      - BUG: 2864: use clientaddr properly
+      - Add the ability to set the source address with "-s" for trapsess
+      - BUG: 1366: Pass proper buffer length to netsnmp_tls_fingerprint_build()
+      - Fix/enforce ipDefaultRouterLifetime value range
+      - BUG: 2810: from "Minzhuan Gong": fix compile with
+	--enable-read-only
+      - BUG: 2845: fix compilation error with NETSNMP_NO_WRITE_SUPPORT
+      - BUG: 2846: fix agent compile when both --enable-read-only and
+	--disable-set-support are given.
+      - Com2sec and com2sec6 SOURCE values may deny sources as well as
+	permit.
+      - TLSTM MIB: Fix support for sha256, 384 and 512 fingerprints
+      - BUG: 2830: Make the agentxperms keyword work again
+      - Add new snmpd.conf option 'diskio' to monitor only selected disks.
+	On machines with thousands of block devices, parsing
+	/proc/diskstats is really slow. The new option enables monitoring
+	of selected devices, saving lot of CPU time.
+
+    agentx:
+      - From "Google AutoFuzz project": account for the nul character we
+	will add to the string.
+      - From "Google Autofuzz project": additional agentx protocol parser
+	bounds checking
+
+    install:
+      - Install missing system header files
+
+    building:
+      - Add Travis and Appveyor CI support
+      - Fix recently introduced autoreconf warnings
+      - Unbreak AIX support
+      - RHEL 5 build fix
+
+    docs:
+      - Bug 2826: from Tomasz: fix utf-8 encoding
+
+    python:
+      - BUG 2824: from: Tomasz: Fix python module make install
+
+    snmptranslate:
+      - Introduce bulk translation mode The special argument "-" causes
+	snmptranslate to enter bulk translation mode, in which it expects
+	one OID per line.  Whitespace is treated as the end of the OID, and
+	only that portion of the line is replaced, meaning that this can be
+	used to translate, e.g., "snmpwalk" output without the proper MIBs
+	loaded: snmptranslate -m all -OX < numeric.txt > symbolic.txt
+
+    snmptrapd:
+      - Add support for the latest libmysqlclient version
+      - Correctly forward traps with Request-ID '0'. Request-ID of
+	forwarded traps is taken from the incoming trap and it can be zero.
+	We should not report error in this case.
+
+    mib2c:
+      - PATCH: 1281, BUG: 2534 fixed mfd writability
+
+    python:
+      - Patch from David Hankins to fix python binding error codes
+
+    unspecified:
+      - A new 'checkbandwidth' script to check host min/max bandwidth
+      - Many fixes found by Coverity scans
+      - Fixed crash when receiving non-standard compliant responses. Some
+	HW sends ifOperStatus as NULL instead of INTEGER type. We should
+	not try to dereference this NULL.
+      - IPv6 support is now compiled by default.  If you need an IPv4-only
+	agent, use --disable-ipv6.
+      - [BUG 2616]: Fix certain spelling errors in source code comments and
+	printed messages
+      - [BUG 2624]: stop trying to use the deprecated perl uninstall
+      - [BUG 2712]: Fix Perl module compilation 
+      - [BUG ]: #2615: Don't return incompletely parsed varbinds
+
+    DISMAN EXPRESSION MIB:
+      - Avoid that enabling this MIB causes snmpd to crash during startup
+
+    DISMAN MIB:
+      - Avoid reading past the end of a buffer Terminate the expExpression
+	string with a NUL character.
+
+    HP:
+      - UX on ia64: Fix large fd set implementation Reported-by: Dixon
+	Xavier <dixoncx@gmail.com>
+
+    NetBSD:
+      - Fix for NetBSD 8
+
+    MIB:
+      - Speed up reading /proc/net/tcp and /proc/net/tcp6 The time needed
+	to read Linux procfs files is proportional to the square of the
+	quotient of the file size and the read buffer size. Increase the
+	read buffer size to decrease the time needed to read large procfs
+	files.
+
+    Windows:
+      - BUG: 2550: Suppress netsnmp_assert s != (-1) messages
+      - Feature-request: 181: Export snmp_api and ASN functions See also
+	http://sourceforge.net/p/net-snmp/feature-requests/181/.
+
+    Cygwin64:
+      -  Fix build with OpenSSL
+      -  Fix winExtDLL build
+
+    Win32:
+      - Add support for the DTLS-UDP and TLS-TCP transports
+      - Win32/MSVC general cleanup
+
+
 *5.7.3*
     snmplib:
       - Fixed crash when MD5 hash is not supported by OpenSSL.
@@ -2448,7 +2773,6 @@ listing of all changes made to the code.
       - [PATCH 1600453]: OS X compile-time endian determination
       - [PATCH 1600522]: CPU HAL implementation for mach/darwin
       - Improve memory reporting (patch from Apple)
-      - Patch: 3514049 from twobits-github: fix compilation on darwin11
 
     Solaris:
       - [BUG 1626153]: No hrSWRun informations on Solaris zones

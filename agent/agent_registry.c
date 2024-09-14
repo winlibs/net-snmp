@@ -10,6 +10,11 @@
  * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 /** @defgroup agent_registry Registry of MIB subtrees, modules, sessions, etc
  *     Maintain a registry of MIB subtrees, together with related information
@@ -25,26 +30,26 @@
 #include <net-snmp/net-snmp-features.h>
 
 #include <signal.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 #include <sys/types.h>
 #include <stdio.h>
 #include <fcntl.h>
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 
@@ -54,11 +59,13 @@
 #include <net-snmp/agent/agent_callbacks.h>
 
 #include "snmpd.h"
+#include "agent_global_vars.h"
 #include "mibgroup/struct.h"
 #include <net-snmp/agent/old_api.h>
 #include <net-snmp/agent/null.h>
 #include <net-snmp/agent/table.h>
 #include <net-snmp/agent/table_iterator.h>
+#include <net-snmp/agent/agent_index.h>
 #include <net-snmp/agent/agent_registry.h>
 
 #ifdef USING_AGENTX_SUBAGENT_MODULE
@@ -66,9 +73,9 @@
 #include "agentx/client.h"
 #endif
 
-netsnmp_feature_child_of(agent_registry_all, libnetsnmpagent)
+netsnmp_feature_child_of(agent_registry_all, libnetsnmpagent);
 
-netsnmp_feature_child_of(unregister_mib_table_row, agent_registry_all)
+netsnmp_feature_child_of(unregister_mib_table_row, agent_registry_all);
 
 /** @defgroup agent_lookup_cache Lookup cache, storing the registered OIDs.
  *     Maintain the cache used for locating sub-trees and OIDs.
@@ -554,7 +561,7 @@ netsnmp_subtree_change_prev(netsnmp_subtree *ptr, netsnmp_subtree *theprev)
                                &ptr->oid_off);
 }
 
-netsnmp_feature_child_of(netsnmp_subtree_compare,netsnmp_unused)
+netsnmp_feature_child_of(netsnmp_subtree_compare,netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_NETSNMP_SUBTREE_COMPARE
 /** Compares OIDs of given subtrees.
  *
@@ -793,12 +800,12 @@ netsnmp_subtree_load(netsnmp_subtree *new_sub, const char *context_name)
     /*  Handle new subtrees that start in virgin territory.  */
 
     if (tree1 == NULL) {
-        netsnmp_subtree *new2 = NULL;
+        /*netsnmp_subtree *new2 = NULL;*/
 	/*  Is there any overlap with later subtrees?  */
 	if (tree2 && snmp_oid_compare(new_sub->end_a, new_sub->end_len,
 				      tree2->start_a, tree2->start_len) > 0) {
-	    new2 = netsnmp_subtree_split(new_sub, 
-					 tree2->start_a, tree2->start_len);
+	    /*new2 =*/
+            netsnmp_subtree_split(new_sub, tree2->start_a, tree2->start_len);
 	}
 
 	/*  Link the new subtree (less any overlapping region) with the list of
@@ -820,11 +827,15 @@ netsnmp_subtree_load(netsnmp_subtree *new_sub, const char *context_name)
 
             netsnmp_subtree_change_next(new_sub, tree2);
 
+#if 0
+            /* The code below cannot be reached which is why it has been
+               surrounded with #if 0 / #endif. */
 	    /* If there was any overlap, recurse to merge in the overlapping
 	       region (including anything that may follow the overlap).  */
 	    if (new2) {
 		return netsnmp_subtree_load(new2, context_name);
 	    }
+#endif
 	}
     } else {
 	/*  If the new subtree starts *within* an existing registration
@@ -1253,7 +1264,6 @@ netsnmp_register_mib(const char *moduleName,
      */
     if (netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID, 
 			       NETSNMP_DS_AGENT_ROLE) != MASTER_AGENT) {
-        extern struct snmp_session *main_session;
         if (main_session == NULL) {
             register_mib_detach_node(subtree);
 	}
@@ -1268,7 +1278,6 @@ netsnmp_register_mib(const char *moduleName,
         reg_parms.range_ubound = range_ubound;
         reg_parms.timeout = timeout;
         reg_parms.flags = (u_char) flags;
-        reg_parms.contextName = context;
         reg_parms.session = ss;
         reg_parms.reginfo = reginfo;
         reg_parms.contextName = context;
@@ -2059,11 +2068,13 @@ in_a_view(oid *name, size_t *namelen, netsnmp_pdu *pdu, int type)
 #ifndef NETSNMP_DISABLE_SNMPV2C
     case SNMP_VERSION_2c:
 #endif
-    case SNMP_VERSION_3:
+   case SNMP_VERSION_3:
+        NETSNMP_RUNTIME_PROTOCOL_CHECK(pdu->version,unsupported_version);
         snmp_call_callbacks(SNMP_CALLBACK_APPLICATION,
                             SNMPD_CALLBACK_ACM_CHECK, &view_parms);
         return view_parms.errorcode;
     }
+  unsupported_version:
     return VACM_NOSECNAME;
 }
 
@@ -2100,10 +2111,12 @@ check_access(netsnmp_pdu *pdu)
     case SNMP_VERSION_2c:
 #endif
     case SNMP_VERSION_3:
+        NETSNMP_RUNTIME_PROTOCOL_CHECK(pdu->version,unsupported_version);
         snmp_call_callbacks(SNMP_CALLBACK_APPLICATION,
                             SNMPD_CALLBACK_ACM_CHECK_INITIAL, &view_parms);
         return view_parms.errorcode;
     }
+  unsupported_version:
     return 1;
 }
 
@@ -2144,14 +2157,16 @@ netsnmp_acm_check_subtree(netsnmp_pdu *pdu, oid *name, size_t namelen)
     case SNMP_VERSION_2c:
 #endif
     case SNMP_VERSION_3:
+        NETSNMP_RUNTIME_PROTOCOL_CHECK(pdu->version,unsupported_version);
         snmp_call_callbacks(SNMP_CALLBACK_APPLICATION,
                             SNMPD_CALLBACK_ACM_CHECK_SUBTREE, &view_parms);
         return view_parms.errorcode;
     }
+  unsupported_version:
     return 1;
 }
 
-netsnmp_feature_child_of(get_session_for_oid,netsnmp_unused)
+netsnmp_feature_child_of(get_session_for_oid,netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_GET_SESSION_FOR_OID
 netsnmp_session *
 get_session_for_oid(const oid *name, size_t len, const char *context_name)
@@ -2232,7 +2247,6 @@ shutdown_tree(void) {
 
 }
 
-extern void     dump_idx_registry(void);
 void
 dump_registry(void)
 {
@@ -2319,7 +2333,7 @@ dump_registry(void)
 /* End of MIB registration code */
 
 
-netsnmp_feature_child_of(register_signal, netsnmp_unused)
+netsnmp_feature_child_of(register_signal, netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_REGISTER_SIGNAL
 
 /** @defgroup agent_signals POSIX signals support for agents.

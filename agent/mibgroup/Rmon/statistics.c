@@ -20,20 +20,20 @@
 
 #include <net-snmp/net-snmp-config.h>
 
-#if HAVE_STDLIB
+#ifdef HAVE_STDLIB
 #include <stdlib.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 
@@ -272,7 +272,7 @@ write_etherStatsEntry(int action, u_char * var_val, u_char var_val_type,
         case Leaf_etherStatsOwner:
             if (hdr->new_owner)
                 AGFREE(hdr->new_owner);
-            hdr->new_owner = AGMALLOC(MAX_OWNERSTRING);;
+            hdr->new_owner = AGMALLOC(MAX_OWNERSTRING);
             if (!hdr->new_owner)
                 return SNMP_ERR_TOOBIG;
             snmp_status = AGUTIL_get_string_value(var_val, var_val_type,

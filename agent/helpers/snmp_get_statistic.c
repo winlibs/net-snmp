@@ -1,16 +1,27 @@
+/*
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ */
+
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
-
 #include <net-snmp/agent/snmp_get_statistic.h>
+#include <stdint.h>
 
-netsnmp_feature_provide(helper_statistics)
-netsnmp_feature_child_of(helper_statistics, mib_helpers)
+netsnmp_feature_provide(helper_statistics);
+netsnmp_feature_child_of(helper_statistics, mib_helpers);
 
 #ifdef NETSNMP_FEATURE_REQUIRE_HELPER_STATISTICS
 /* if we're not needed, then neither is this */
-netsnmp_feature_require(statistics)
+netsnmp_feature_require(statistics);
 #endif
 
 #ifndef NETSNMP_FEATURE_REMOVE_HELPER_STATISTICS
@@ -52,9 +63,17 @@ int
 netsnmp_register_statistic_handler(netsnmp_handler_registration *reginfo,
                                    oid start, int begin, int end)
 {
-    netsnmp_inject_handler(reginfo,
-                           netsnmp_get_statistic_handler(begin - start));
-    return netsnmp_register_scalar_group(reginfo, start, start + (end - begin));
+    netsnmp_mib_handler *handler =
+        netsnmp_get_statistic_handler(begin - start);
+    if (!handler ||
+        (netsnmp_inject_handler(reginfo, handler) != SNMPERR_SUCCESS)) {
+        snmp_log(LOG_ERR, "could not create statistic handler\n");
+        netsnmp_handler_free(handler);
+        netsnmp_handler_registration_free(reginfo);
+        return MIB_REGISTRATION_FAILED;
+    }
+    return netsnmp_register_scalar_group(reginfo, start,
+                                         start + (end - begin));
 }
 #else /* !NETSNMP_FEATURE_REMOVE_HELPER_GET_STATISTICS */
 netsnmp_feature_unused(helper_statistics);

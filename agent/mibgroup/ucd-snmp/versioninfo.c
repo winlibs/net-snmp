@@ -2,20 +2,20 @@
 #include <net-snmp/net-snmp-features.h>
 
 #include <sys/types.h>
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
 
@@ -28,7 +28,7 @@
 #include "util_funcs/restart.h"
 #include "util_funcs.h" /* clear_cache */
 
-netsnmp_feature_require(clear_cache)
+netsnmp_feature_require(clear_cache);
 
 
 void
@@ -132,7 +132,7 @@ var_extensible_version(struct variable *vp,
             *var_len = 1024;    /* mib imposed restriction */
         return (u_char *) config_opts;
 #else
-        strlcpy(errmsg, "", sizeof(errmsg)));
+        strlcpy(errmsg, "", sizeof(errmsg));
         *var_len = strlen(errmsg);
         return ((u_char *) errmsg);
 #endif

@@ -49,9 +49,9 @@
 
 #include <ctype.h>
 
-netsnmp_feature_require(row_merge)
-netsnmp_feature_require(baby_steps)
-netsnmp_feature_require(check_all_requests_error)
+netsnmp_feature_require(row_merge);
+netsnmp_feature_require(baby_steps);
+netsnmp_feature_require(check_all_requests_error);
 
 /**********************************************************************
  **********************************************************************
@@ -166,8 +166,6 @@ NETSNMP_STATIC_INLINE int
                                                 var, int column);
 #endif
 
-ipv4InterfaceTable_data *ipv4InterfaceTable_allocate_data(void);
-
 /**
  * @internal
  * Initialize the table ipv4InterfaceTable 
@@ -274,10 +272,12 @@ _ipv4InterfaceTable_initialize_interface(ipv4InterfaceTable_registration *
         netsnmp_handler_registration_create("ipv4InterfaceTable", handler,
                                             ipv4InterfaceTable_oid,
                                             ipv4InterfaceTable_oid_size,
-                                            HANDLER_CAN_BABY_STEP
+                                            HANDLER_CAN_BABY_STEP |
 #ifndef NETSNMP_DISABLE_SET_SUPPORT
-                                          | HANDLER_CAN_RWRITE
-#endif
+                                            HANDLER_CAN_RWRITE
+#else
+                                            HANDLER_CAN_RONLY
+#endif /* NETSNMP_DISABLE_SET_SUPPORT */
                                           );
     if (NULL == reginfo) {
         snmp_log(LOG_ERR, "error registering table ipv4InterfaceTable\n");
@@ -387,6 +387,7 @@ ipv4InterfaceTable_valid_columns_set(netsnmp_column_info *vc)
     ipv4InterfaceTable_if_ctx.tbl_info.valid_columns = vc;
 }                               /* ipv4InterfaceTable_valid_columns_set */
 
+#if 0
 /*
  * ipv4InterfaceTable_allocate_data
  *
@@ -407,6 +408,7 @@ ipv4InterfaceTable_allocate_data(void)
 
     return rtn;
 }                               /* ipv4InterfaceTable_allocate_data */
+#endif
 
 /**
  * @internal
@@ -646,7 +648,7 @@ _mfd_ipv4InterfaceTable_get_values(netsnmp_mib_handler *handler,
 
         /*
          * if the buffer wasn't used previously for the old data (i.e. it
-         * was allcoated memory)  and the get routine replaced the pointer,
+         * was allocated memory)  and the get routine replaced the pointer,
          * we need to free the previous pointer.
          */
         if (old_string && (old_string != requests->requestvb->buf) &&

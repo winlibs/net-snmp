@@ -6,12 +6,13 @@
 #include <net-snmp/net-snmp-features.h>
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
+#include "agent_global_vars.h"
 
 #include <net-snmp/agent/table.h>
 #include <net-snmp/agent/table_iterator.h>
 #include "nsTransactionTable.h"
 
-netsnmp_feature_require(table_dataset)
+netsnmp_feature_require(table_dataset);
 
 /** Initialize the nsTransactionTable table by defining it's contents
    and how it's structured */
@@ -95,8 +96,6 @@ init_nsTransactionTable(void)
     each appropriately according to the data matching the first row
     and return the put_index_data variable at the end of the function.
 */
-extern netsnmp_agent_session *agent_delegated_list;
-
 netsnmp_variable_list *
 nsTransactionTable_get_first_data_point(void **my_loop_context,
                                         void **my_data_context,

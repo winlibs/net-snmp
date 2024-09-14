@@ -13,28 +13,31 @@
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
 
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
+#include "agent_global_vars.h"
 
 #include "agentx/protocol.h"
 #include "agentx/client.h"
+#include "agentx/subagent.h"
+#include "agentx/master_admin.h"
 
 #include <net-snmp/agent/agent_index.h>
 #include <net-snmp/agent/agent_trap.h>
@@ -42,11 +45,11 @@
 #include <net-snmp/agent/agent_sysORTable.h>
 #include "master.h"
 
-netsnmp_feature_require(unregister_mib_table_row)
-netsnmp_feature_require(trap_vars_with_context)
-netsnmp_feature_require(calculate_sectime_diff)
-netsnmp_feature_require(allocate_globalcacheid)
-netsnmp_feature_require(remove_index)
+netsnmp_feature_require(unregister_mib_table_row);
+netsnmp_feature_require(trap_vars_with_context);
+netsnmp_feature_require(calculate_sectime_diff);
+netsnmp_feature_require(allocate_globalcacheid);
+netsnmp_feature_require(remove_index);
 
 netsnmp_session *
 find_agentx_session(netsnmp_session * session, int sessid)
@@ -133,11 +136,16 @@ close_agentx_session(netsnmp_session * session, int sessid)
          * requests, so that the delegated request will be completed and
          * further requests can be processed
          */
-        netsnmp_remove_delegated_requests_for_session(session);
+	while (netsnmp_remove_delegated_requests_for_session(session)) {
+		DEBUGMSGTL(("agentx/master", "Continue removing delegated reqests\n"));
+	}
+
         if (session->subsession != NULL) {
             netsnmp_session *subsession = session->subsession;
             for(; subsession; subsession = subsession->next) {
-                netsnmp_remove_delegated_requests_for_session(subsession);
+                while (netsnmp_remove_delegated_requests_for_session(subsession)) {
+			DEBUGMSGTL(("agentx/master", "Continue removing delegated subsession reqests\n"));
+		}
             }
         }
                 
@@ -153,6 +161,7 @@ close_agentx_session(netsnmp_session * session, int sessid)
     for (sp = session->subsession; sp != NULL; sp = sp->next) {
 
         if (sp->sessid == sessid) {
+            netsnmp_remove_delegated_requests_for_session(sp);
             unregister_mibs_by_session(sp);
             unregister_index_by_session(sp);
             unregister_sysORTable_by_session(sp);
@@ -408,8 +417,6 @@ agentx_notify(netsnmp_session * session, netsnmp_pdu *pdu)
 {
     netsnmp_session       *sp;
     netsnmp_variable_list *var;
-    extern const oid       sysuptime_oid[], snmptrap_oid[];
-    extern const size_t    sysuptime_oid_len, snmptrap_oid_len;
 
     sp = find_agentx_session(session, pdu->sessid);
     if (sp == NULL)
@@ -437,17 +444,12 @@ agentx_notify(netsnmp_session * session, netsnmp_pdu *pdu)
      *     as this is valid AgentX syntax.
      */
 
-	/* If a context name was specified, send the trap using that context.
-	 * Otherwise, send the trap without the context using the old method */
-	if (pdu->contextName != NULL)
-	{
-        send_trap_vars_with_context(-1, -1, pdu->variables, 
-                       pdu->contextName);
-	}
-	else
-	{
+    /* If a context name was specified, send the trap using that context.
+     * Otherwise, send the trap without the context using the old method */
+    if (pdu->contextName != NULL)
+        send_trap_vars_with_context(-1, -1, pdu->variables, pdu->contextName);
+    else
         send_trap_vars(-1, -1, pdu->variables);
-	}
 
     return AGENTX_ERR_NOERROR;
 }

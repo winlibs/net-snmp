@@ -15,6 +15,8 @@
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/library/testing.h>
 
+#ifndef NETSNMP_FEATURE_REMOVE_UNREGISTER_APP_CONFIG_HANDLER
+
 /* #undef TEST_INTERNAL_API */
 #define TEST_INTERNAL_API 1
 
@@ -51,7 +53,7 @@ int main(int argc, char *argv[])
     return ret;
 }
 
-int test1() {
+int test1(void) {
     int sum = 0;
     callback_called = 0;
     fprintf(stdout, "# snmpd_unregister_config_handler tests\n");
@@ -127,3 +129,13 @@ int test3(void) {
     return 0;
 #endif
 }
+
+#else
+int main(int argc, char *argv[])
+{
+    OK(1, "skipped test");
+    if (__did_plan == 0)
+       PLAN(__test_counter);
+    return 0;
+}
+#endif

@@ -2,6 +2,7 @@
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/agent/hardware/cpu.h>
+#include "cpu_linux.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -53,7 +54,7 @@ void init_cpu_linux( void ) {
             cpu->status = 2;  /* running */
             sprintf( cpu->name, "cpu%d", i );
 #if defined(__s390__) || defined(__s390x__)
-            strcat( cpu->descr, "An S/390 CPU" );
+            strlcat(cpu->descr, "An S/390 CPU", sizeof(cpu->descr));
 #endif
         }
 #if defined(__s390__) || defined(__s390x__)
@@ -63,8 +64,8 @@ void init_cpu_linux( void ) {
                 n++;
                 cpu = netsnmp_cpu_get_byIdx( i, 1 );
                 cpu->status = 2;  /* running */
-                sprintf( cpu->name, "cpu%d", i );
-                strcat( cpu->descr, "An S/390 CPU" );
+                sprintf(cpu->name, "cpu%d", i);
+                strlcat(cpu->descr, "An S/390 CPU", sizeof(cpu->descr));
             }
         }
 #endif
@@ -72,17 +73,23 @@ void init_cpu_linux( void ) {
 #ifdef DESCR_FIELD
         if (!strncmp( buf, DESCR_FIELD, strlen(DESCR_FIELD))) {
             cp = strchr( buf, ':' );
-            strcpy( cpu->descr, cp+2 );
-            cp = strchr( cpu->descr, '\n' );
-            *cp = 0;
+            if (cp) {
+                strlcpy(cpu->descr, cp + 2, sizeof(cpu->descr));
+                cp = strchr(cpu->descr, '\n');
+                if (cp)
+                    *cp = 0;
+            }
         }
 #endif
 #ifdef DESCR2_FIELD
         if (!strncmp( buf, DESCR2_FIELD, strlen(DESCR2_FIELD))) {
             cp = strchr( buf, ':' );
-            strcat( cpu->descr, cp );
-            cp = strchr( cpu->descr, '\n' );
-            *cp = 0;
+            if (cp) {
+                strlcat(cpu->descr, cp, sizeof(cpu->descr));
+                cp = strchr(cpu->descr, '\n');
+                if (cp)
+                    *cp = 0;
+            }
         }
 #endif
     }
@@ -114,6 +121,10 @@ int netsnmp_cpu_arch_load( netsnmp_cache *cache, void *magic ) {
     if (bsize == 0) {
         bsize = getpagesize()-1;
         buff = (char*)malloc(bsize+1);
+        if (buff == NULL) {
+            close(statfd);
+            return -1;
+        }
     }
     while ((bytes_read = read(statfd, buff, bsize)) == bsize) {
         bsize += BUFSIZ;
@@ -332,4 +343,3 @@ void _cpu_load_swap_etc( char *buff, netsnmp_cpu_info *cpu ) {
     }
     first = 0;
 }
-

@@ -6,11 +6,11 @@
 #include <net-snmp/net-snmp-features.h>
 
 #include <ctype.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 #include <stdio.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -35,7 +35,7 @@ struct dlmod {
   int             index;
   char            name[64 + 1];
   char            path[255 + 1];
-  char            error[255 + 1];
+  char           *error;
   void           *handle;
   int             status;
 };
@@ -84,6 +84,7 @@ dlmod_delete_module(struct dlmod *dlm)
     for (pdlmod = &dlmods; *pdlmod; pdlmod = &((*pdlmod)->next))
         if (*pdlmod == dlm) {
             *pdlmod = dlm->next;
+            free(dlm->error);
             free(dlm);
             return;
         }
@@ -185,34 +186,44 @@ dlmod_load_module(struct dlmod *dlm)
     DEBUGMSGTL(("dlmod", "dlmod_load_module %s: %s\n", dlm->name,
                 dlm->path));
 
-    if (!dlm || !dlm->path || !dlm->name ||
-        (dlm->status != DLMOD_UNLOADED && dlm->status != DLMOD_ERROR))
+    if (!dlm || (dlm->status != DLMOD_UNLOADED && dlm->status != DLMOD_ERROR))
         return;
+
+    free(dlm->error);
+    dlm->error = NULL;
 
     if (dlmod_is_abs_path(dlm->path)) {
         dlm->handle = dlmod_dlopen(dlm->path);
         if (dlm->handle == NULL) {
-            snprintf(dlm->error, sizeof(dlm->error),
-                     "dlopen(%s) failed: %s", dlm->path, dlmod_dlerror());
+            if (asprintf(&dlm->error, "dlopen(%s) failed: %s", dlm->path,
+                         dlmod_dlerror()) < 0)
+                dlm->error = NULL;
             dlm->status = DLMOD_ERROR;
             return;
         }
     } else {
-        char *st, *p, tmp_path[255];
+        char *st, *p, *tmp_path = NULL;
 
         for (p = strtok_r(dlmod_path, ENV_SEPARATOR, &st); p;
              p = strtok_r(NULL, ENV_SEPARATOR, &st)) {
-            snprintf(tmp_path, sizeof(tmp_path), "%s/%s.%s", p, dlm->path,
-                     dlmod_dl_suffix);
+            free(tmp_path);
+            if (asprintf(&tmp_path, "%s/%s.%s", p, dlm->path, dlmod_dl_suffix)
+                < 0) {
+                dlm->status = DLMOD_ERROR;
+                return;
+            }
             DEBUGMSGTL(("dlmod", "p: %s tmp_path: %s\n", p, tmp_path));
-            dlm->handle = dlmod_dlopen(tmp_path);
+            dlm->handle = tmp_path ? dlmod_dlopen(tmp_path) : NULL;
             if (dlm->handle == NULL) {
-                snprintf(dlm->error, sizeof(dlm->error),
-                         "dlopen(%s) failed: %s", tmp_path, dlmod_dlerror());
+                free(dlm->error);
+                if (asprintf(&dlm->error, "dlopen(%s) failed: %s", tmp_path,
+                             dlmod_dlerror()) < 0)
+                    dlm->error = NULL;
                 dlm->status = DLMOD_ERROR;
             }
         }
         strlcpy(dlm->path, tmp_path, sizeof(dlm->path));
+        free(tmp_path);
         if (dlm->status == DLMOD_ERROR)
             return;
     }
@@ -224,15 +235,17 @@ dlmod_load_module(struct dlmod *dlm)
         dl_init = dlmod_dlsym(dlm->handle, sym_init);
         if (dl_init == NULL) {
             dlmod_dlclose(dlm->handle);
-            snprintf(dlm->error, sizeof(dlm->error),
-                     "dlsym failed: can't find \'%s\'", sym_init);
+            free(dlm->error);
+            if (asprintf(&dlm->error, "dlsym failed: can't find \'%s\'",
+                         sym_init) < 0)
+                dlm->error = NULL;
             dlm->status = DLMOD_ERROR;
             return;
         }
         dl_init();
     }
 
-    dlm->error[0] = '\0';
+    dlm->error = NULL;
     dlm->status = DLMOD_LOADED;
 }
 
@@ -333,6 +346,7 @@ dlmod_free_config(void)
         dtmp2 = dtmp;
         dtmp = dtmp->next;
         dlmod_unload_module(dtmp2);
+        free(dtmp2->error);
         free(dtmp2);
     }
     dlmods = NULL;
@@ -380,7 +394,7 @@ header_dlmod(struct variable *vp,
 
     memcpy(name, newname, (vp->namelen + 1) * sizeof(oid));
     *length = vp->namelen + 1;
-    *write_method = 0;
+    *write_method = NULL;
     *var_len = sizeof(long);    /* default to 'long' results */
     return MATCH_SUCCEEDED;
 }
@@ -397,7 +411,7 @@ var_dlmod(struct variable * vp,
      * variables we may use later
      */
 
-    *write_method = 0;         /* assume it isn't writable for the time being */
+    *write_method = NULL;      /* assume it isn't writable for the time being */
     *var_len = sizeof(int);    /* assume an integer and change later if not */
 
     if (header_dlmod(vp, name, length, exact,
@@ -556,7 +570,7 @@ header_dlmodEntry(struct variable *vp,
     unsigned int    dlmod_index;
 
     memcpy(newname, vp->name, vp->namelen * sizeof(oid));
-    *write_method = 0;
+    *write_method = NULL;
 
     for (dlmod_index = 1; dlmod_index < dlmod_next_index; dlmod_index++) {
         dlm = dlmod_get_by_index(dlmod_index);
@@ -618,7 +632,7 @@ var_dlmodEntry(struct variable * vp,
         *var_len = strlen(dlm->path);
         return (unsigned char *) dlm->path;
     case DLMODERROR:
-        *var_len = strlen(dlm->error);
+        *var_len = dlm->error ? strlen(dlm->error) : 0;
         return (unsigned char *) dlm->error;
     case DLMODSTATUS:
         *write_method = write_dlmodStatus;
@@ -686,7 +700,7 @@ init_dlmod(void)
     DEBUGMSGTL(("dlmod", "dlmod_path: %s\n", dlmod_path));
 }
 
-netsnmp_feature_require(snmpd_unregister_config_handler)
+netsnmp_feature_require(snmpd_unregister_config_handler);
 
 void
 shutdown_dlmod(void)

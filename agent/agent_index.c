@@ -10,26 +10,26 @@
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 #include <signal.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 #include <sys/types.h>
 #include <stdio.h>
 #include <fcntl.h>
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 
@@ -39,6 +39,7 @@
 #include <net-snmp/agent/agent_index.h>
 
 #include "snmpd.h"
+#include "agent_global_vars.h"
 #include "mibgroup/struct.h"
 #include <net-snmp/agent/table.h>
 #include <net-snmp/agent/table_iterator.h>
@@ -48,9 +49,9 @@
 #include "agentx/client.h"
 #endif
 
-netsnmp_feature_child_of(agent_index_all, libnetsnmpagent)
+netsnmp_feature_child_of(agent_index_all, libnetsnmpagent);
 
-netsnmp_feature_child_of(remove_index, agent_index_all)
+netsnmp_feature_child_of(remove_index, agent_index_all);
 
         /*
          * Initial support for index allocation
@@ -64,8 +65,6 @@ struct snmp_index {
     struct snmp_index *prev_oid;
     struct snmp_index *next_idx;
 }              *snmp_index_head = NULL;
-
-extern netsnmp_session *main_session;
 
 /*
  * The caller is responsible for free()ing the memory returned by
@@ -455,7 +454,7 @@ register_index(netsnmp_variable_list * varbind, int flags,
          * Release an allocated index,
          *   to allow it to be used elsewhere
          */
-netsnmp_feature_child_of(release_index,netsnmp_unused)
+netsnmp_feature_child_of(release_index,netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_RELEASE_INDEX
 int
 release_index(netsnmp_variable_list * varbind)
@@ -598,7 +597,7 @@ unregister_index(netsnmp_variable_list * varbind, int remember,
     return SNMP_ERR_NOERROR;
 }
 
-netsnmp_feature_child_of(unregister_indexes,netsnmp_unused)
+netsnmp_feature_child_of(unregister_indexes,netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_UNREGISTER_INDEXES
 int
 unregister_string_index(oid * name, size_t name_len, char *cp)
@@ -705,7 +704,7 @@ dump_idx_registry(void)
     }
 }
 
-netsnmp_feature_child_of(count_indexes, netsnmp_unused)
+netsnmp_feature_child_of(count_indexes, netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_UNUSED
 unsigned long
 count_indexes(oid * name, size_t namelen, int include_unallocated)

@@ -11,6 +11,10 @@
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
 /*
  * include our parent header 
  */
@@ -185,7 +189,7 @@ etherStatsTable_container_shutdown(netsnmp_container * container_ptr)
  *  While loading the data, the only important thing is the indexes.
  *  If access to your data is cheap/fast (e.g. you have a pointer to a
  *  structure in memory), it would make sense to update the data here.
- *  If, however, the accessing the data invovles more work (e.g. parsing
+ *  If, however, the accessing the data involves more work (e.g. parsing
  *  some other existing data, or peforming calculations to derive the data),
  *  then you can limit yourself to setting the indexes and saving any
  *  information you will need later. Then use the saved information in
@@ -201,9 +205,6 @@ int
 etherStatsTable_container_load(netsnmp_container * container)
 {
     size_t          count = 0;
-
-    DEBUGMSGTL(("verbose:etherStatsTable:etherStatsTable_container_load",
-                "called\n"));
 
     /*
      * TODO:352:M: |   |-> set indexes in new etherStatsTable rowreq context.
@@ -224,6 +225,10 @@ etherStatsTable_container_load(netsnmp_container * container)
 #if defined(linux)
     struct ifname *list_head = NULL, *p = NULL;
 #endif
+
+    DEBUGMSGTL(("verbose:etherStatsTable:etherStatsTable_container_load",
+                "called\n"));
+
     
     /*
      * create socket for ioctls
@@ -279,6 +284,7 @@ etherStatsTable_container_load(netsnmp_container * container)
         if (NULL == rowreq_ctx) {
             snmp_log(LOG_ERR, "memory allocation failed\n");
             close(fd);
+            etherstats_interface_name_list_free(list_head);
             return MFD_RESOURCE_UNAVAILABLE;
         }
 

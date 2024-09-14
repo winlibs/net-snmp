@@ -19,13 +19,17 @@
 
 #include <net-snmp/net-snmp-config.h>
 
-#if HAVE_ARPA_NAMESER_H
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+
+#ifdef HAVE_ARPA_NAMESER_H
 #include <arpa/nameser.h>
 #endif
 
 #include <errno.h>
 #include <stdio.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>

@@ -4,16 +4,16 @@
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 
-netsnmp_feature_require(ulong_instance)
-netsnmp_feature_require(register_read_only_table_data)
-netsnmp_feature_require(table_build_result)
-netsnmp_feature_require(table_dataset)
+netsnmp_feature_require(ulong_instance);
+netsnmp_feature_require(register_read_only_table_data);
+netsnmp_feature_require(table_build_result);
+netsnmp_feature_require(table_dataset);
 
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
@@ -29,10 +29,20 @@ static oid      my_test_oid[4] = { 1, 2, 3, 4 };
 static oid      my_table_oid[4] = { 1, 2, 3, 5 };
 static oid      my_instance_oid[5] = { 1, 2, 3, 6, 1 };
 static oid      my_data_table_oid[4] = { 1, 2, 3, 7 };
-static oid      my_data_table_set_oid[4] = { 1, 2, 3, 8 };
 static oid      my_data_ulong_instance[4] = { 1, 2, 3, 9 };
 
-u_long          my_ulong = 0;
+static netsnmp_handler_registration *ro_scalar_h, *rw_scalar_h, *table_h;
+static netsnmp_handler_registration *my_test, *table_h;
+static netsnmp_table_registration_info *table_info1;
+static netsnmp_table_registration_info *table_info2;
+static netsnmp_table_data *table;
+
+static u_long   my_ulong = 0;
+
+static Netsnmp_Node_Handler my_test_handler;
+static Netsnmp_Node_Handler my_test_table_handler;
+static Netsnmp_Node_Handler my_data_table_handler;
+static Netsnmp_Node_Handler my_test_instance_handler;
 
 void
 init_testhandler(void)
@@ -40,11 +50,7 @@ init_testhandler(void)
     /*
      * we're registering at .1.2.3.4 
      */
-    netsnmp_handler_registration *my_test;
-    netsnmp_table_registration_info *table_info;
     u_long          ind1;
-    netsnmp_table_data *table;
-    netsnmp_table_data_set *table_set;
     netsnmp_table_row *row;
 
     DEBUGMSGTL(("testhandler", "initializing\n"));
@@ -52,17 +58,16 @@ init_testhandler(void)
     /*
      * basic handler test
      */
-    netsnmp_register_handler(netsnmp_create_handler_registration
-                             ("myTest", my_test_handler, my_test_oid, 4,
-                              HANDLER_CAN_RONLY));
+    ro_scalar_h = netsnmp_create_handler_registration("myTest", my_test_handler,
+                                            my_test_oid, 4, HANDLER_CAN_RONLY);
+    netsnmp_register_handler(ro_scalar_h);
 
     /*
      * instance handler test
      */
-
-    netsnmp_register_instance(netsnmp_create_handler_registration
-                              ("myInstance", my_test_instance_handler,
-                               my_instance_oid, 5, HANDLER_CAN_RWRITE));
+    rw_scalar_h = netsnmp_create_handler_registration("myInstance",
+             my_test_instance_handler, my_instance_oid, 5, HANDLER_CAN_RWRITE);
+    netsnmp_register_instance(rw_scalar_h);
 
     netsnmp_register_ulong_instance("myulong",
                                     my_data_ulong_instance, 4,
@@ -79,15 +84,15 @@ init_testhandler(void)
     if (!my_test)
         return;
 
-    table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
-    if (table_info == NULL)
+    table_info1 = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
+    if (!table_info1)
         return;
 
-    netsnmp_table_helper_add_indexes(table_info, ASN_INTEGER, ASN_INTEGER,
+    netsnmp_table_helper_add_indexes(table_info1, ASN_INTEGER, ASN_INTEGER,
                                      0);
-    table_info->min_column = 3;
-    table_info->max_column = 3;
-    netsnmp_register_table(my_test, table_info);
+    table_info1->min_column = 3;
+    table_info1->max_column = 3;
+    netsnmp_register_table(my_test, table_info1);
 
     /*
      * data table helper test
@@ -112,7 +117,7 @@ init_testhandler(void)
     netsnmp_table_row_add_index(row, ASN_INTEGER, &ind1, sizeof(ind1));
     netsnmp_table_row_add_index(row, ASN_OCTET_STR, "partridge",
                                 strlen("partridge"));
-    row->data = (void *) "pear tree";
+    row->data = NETSNMP_REMOVE_CONST(void *, "pear tree");
     netsnmp_table_data_add_row(table, row);
 
     /*
@@ -123,27 +128,37 @@ init_testhandler(void)
     netsnmp_table_row_add_index(row, ASN_INTEGER, &ind1, sizeof(ind1));
     netsnmp_table_row_add_index(row, ASN_OCTET_STR, "turtle",
                                 strlen("turtle"));
-    row->data = (void *) "doves";
+    row->data = NETSNMP_REMOVE_CONST(void *, "doves");
     netsnmp_table_data_add_row(table, row);
 
     /*
      * we're going to register it as a normal table too, so we get the
      * automatically parsed column and index information 
      */
-    table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
-    if (table_info == NULL)
+    table_info2 = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
+    if (table_info2 == NULL)
         return;
 
-    netsnmp_table_helper_add_indexes(table_info, ASN_INTEGER,
+    netsnmp_table_helper_add_indexes(table_info2, ASN_INTEGER,
                                      ASN_OCTET_STR, 0);
-    table_info->min_column = 3;
-    table_info->max_column = 3;
+    table_info2->min_column = 3;
+    table_info2->max_column = 3;
 
-    netsnmp_register_read_only_table_data
-        (netsnmp_create_handler_registration
-         ("12days", my_data_table_handler, my_data_table_oid, 4,
-          HANDLER_CAN_RONLY), table, table_info);
+    table_h = netsnmp_create_handler_registration("12days",
+                my_data_table_handler, my_data_table_oid, 4, HANDLER_CAN_RONLY);
+    netsnmp_register_read_only_table_data(table_h, table, table_info2);
 
+}
+
+void
+shutdown_testhandler(void)
+{
+    netsnmp_unregister_handler(my_test);
+    netsnmp_table_registration_info_free(table_info1);
+    netsnmp_unregister_handler(table_h);
+    netsnmp_table_registration_info_free(table_info2);
+    netsnmp_unregister_handler(rw_scalar_h);
+    netsnmp_unregister_handler(ro_scalar_h);
 }
 
 int
@@ -253,7 +268,7 @@ my_test_table_handler(netsnmp_mib_handler *handler,
                 /*
                  * or no index specified 
                  */
-                table_info->indexes->val.integer == 0) {
+                table_info->indexes->val.integer == NULL) {
                 table_info->colnum = RESULT_COLUMN;
                 x = 0;
                 y = 0;
@@ -363,7 +378,7 @@ my_test_instance_handler(netsnmp_mib_handler *handler,
          * update current 
          */
         accesses = *(requests->requestvb->val.integer);
-        DEBUGMSGTL(("testhandler", "updated accesses -> %d\n", accesses));
+        DEBUGMSGTL(("testhandler", "updated accesses -> %lu\n", accesses));
         break;
 
     case MODE_SET_UNDO:
@@ -406,17 +421,16 @@ my_data_table_handler(netsnmp_mib_handler *handler,
          */
         row = netsnmp_extract_table_row(requests);
         table_info = netsnmp_extract_table_info(requests);
-        if (row)
-            column3 = (char *) row->data;
-        if (!row || !table_info || !column3)
+        if (!table_info || !row || !row->data)
             continue;
+        column3 = (char *) row->data;
 
         /*
          * there's only one column, we don't need to check if it's right 
          */
         netsnmp_table_data_build_result(reginfo, reqinfo, requests, row,
                                         table_info->colnum,
-                                        ASN_OCTET_STR, column3,
+                                        ASN_OCTET_STR, (u_char*)column3,
                                         strlen(column3));
         requests = requests->next;
     }

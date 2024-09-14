@@ -7,9 +7,14 @@
 
 void            init_extensible(void);
 
-config_require(util_funcs/header_simple_table)
-config_require(util_funcs)
-config_require(utilities/execute)
+config_require(ucd-snmp/pass);
+config_require(util_funcs/header_simple_table);
+config_require(util_funcs);
+config_require(utilities/execute);
+
+     extern struct extensible *extens;
+     extern struct extensible *relocs;
+     extern int numextens, numrelocs;
 
      extern FindVarMethod var_extensible_shell;
      extern WriteMethod fixExecError;
