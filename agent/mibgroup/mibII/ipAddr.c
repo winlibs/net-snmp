@@ -21,26 +21,26 @@
 #define _KERNEL 1
 #define _I_DEFINED_KERNEL
 #endif
-#if HAVE_SYS_PARAM_H
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #ifdef irix6
 #define _STANDALONE 1
 #endif
 #include <unistd.h>
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
 
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 #include <sys/types.h>
-#if HAVE_SYS_SYSCTL_H
+#ifdef HAVE_SYS_SYSCTL_H
 #ifdef _I_DEFINED_KERNEL
 #undef _KERNEL
 #endif
@@ -49,52 +49,52 @@
 #define _KERNEL 1
 #endif
 #endif
-#if HAVE_SYS_SYSMP_H
+#ifdef HAVE_SYS_SYSMP_H
 #include <sys/sysmp.h>
 #endif
-#if HAVE_SYS_TCPIPSTATS_H
+#ifdef HAVE_SYS_TCPIPSTATS_H
 #include <sys/tcpipstats.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_NET_IF_H
+#ifdef HAVE_NET_IF_H
 #include <net/if.h>
 #endif
-#if HAVE_NET_IF_VAR_H
+#ifdef HAVE_NET_IF_VAR_H
 #include <net/if_var.h>
 #endif
 #ifdef _I_DEFINED_KERNEL
 #undef _KERNEL
 #endif
-#if HAVE_NETINET_IN_SYSTM_H
+#ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
 #endif
-#if HAVE_SYS_HASHING_H
+#ifdef HAVE_SYS_HASHING_H
 #include <sys/hashing.h>
 #endif
-#if HAVE_NETINET_IN_VAR_H
+#ifdef HAVE_NETINET_IN_VAR_H
 #include <netinet/in_var.h>
 #endif
-#if HAVE_NETINET_IP_H
+#ifdef HAVE_NETINET_IP_H
 #include <netinet/ip.h>
 #endif
-#if HAVE_NETINET_IP_VAR_H
+#ifdef HAVE_NETINET_IP_VAR_H
 #include <netinet/ip_var.h>
 #endif
-#if HAVE_INET_MIB2_H
+#ifdef HAVE_INET_MIB2_H
 #include <inet/mib2.h>
 #endif
-#if HAVE_SYS_STREAM_H
+#ifdef HAVE_SYS_STREAM_H
 #include <sys/stream.h>
 #endif
-#if HAVE_NET_ROUTE_H
+#ifdef HAVE_NET_ROUTE_H
 #include <net/route.h>
 #endif
-#if HAVE_SYSLOG_H
+#ifdef HAVE_SYSLOG_H
 #include <syslog.h>
 #endif
-#if HAVE_SYS_IOCTL_H
+#ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif
 
@@ -115,13 +115,15 @@
 #include <net-snmp/data_access/interface.h>
 
 #include "ip.h"
+#include "ipAddr.h"
 #include "interfaces.h"
 
-#ifdef cygwin
+#if defined(cygwin) || defined(mingw32)
 #include <windows.h>
+#include <winerror.h>
 #endif
 
-netsnmp_feature_require(interface_legacy)
+netsnmp_feature_require(interface_legacy);
 
         /*********************
 	 *
@@ -531,7 +533,6 @@ Address_Scan_Init(void)
     while (ifc.ifc_len >= (sizeof(struct ifreq) * num_interfaces));
     
     ifr = ifc.ifc_req;
-    close(fd);
 }
 
 /*
@@ -699,16 +700,10 @@ var_ipAddrEntry(struct variable * vp,
         addr_ret = Lowentry.ipAdEntAddr;
         return (u_char *) & addr_ret;
     case IPADIFINDEX:
-#ifdef NETSNMP_INCLUDE_IFTABLE_REWRITES
         Lowentry.ipAdEntIfIndex.o_bytes[Lowentry.ipAdEntIfIndex.o_length] = '\0';
         long_return =
             netsnmp_access_interface_index_find(Lowentry.
                                                 ipAdEntIfIndex.o_bytes);
-#else
-        long_return =
-           Interface_Index_By_Name(Lowentry.ipAdEntIfIndex.o_bytes,
-                                   Lowentry.ipAdEntIfIndex.o_length);
-#endif
         return (u_char *) & long_return;
     case IPADNETMASK:
 	*var_len = sizeof(addr_ret);
@@ -943,7 +938,7 @@ var_ipAddrEntry(struct variable *vp,
         return (u_char *) & long_return;
 
     case IPADREASMMAX:
-#if NETSNMP_NO_DUMMY_VALUES
+#ifdef NETSNMP_NO_DUMMY_VALUES
         return NULL;
 #else
         long_return = -1;

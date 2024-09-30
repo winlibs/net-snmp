@@ -18,22 +18,40 @@
 #include <net-snmp/net-snmp-features.h>
 #include "mibII_common.h"
 
-#if HAVE_NETINET_TCP_H
+#ifdef HAVE_NETINET_TCP_H
 #include <netinet/tcp.h>
 #endif
-#if HAVE_NETINET_TCP_TIMER_H
+#ifdef HAVE_NETINET_TCP_TIMER_H
 #include <netinet/tcp_timer.h>
 #endif
-#if HAVE_NETINET_TCPIP_H
+#ifdef HAVE_NETINET_TCPIP_H
 #include <netinet/tcpip.h>
 #endif
-#if HAVE_NETINET_TCP_VAR_H
+#ifdef HAVE_NETINET_TCP_VAR_H
 #include <netinet/tcp_var.h>
 #endif
-#if HAVE_NETLINK_NETLINK_H
+#ifdef HAVE_NETLINK_NETLINK_H
 #include <netlink/netlink.h>
 #include <netlink/msg.h>
 #include <linux/inet_diag.h>
+#endif
+
+#ifdef HAVE_KVM_GETFILES
+#if defined(HAVE_KVM_GETFILE2) || !defined(openbsd5)
+#undef HAVE_KVM_GETFILES
+#endif
+#endif
+
+#ifdef HAVE_KVM_GETFILES
+#include <kvm.h>
+#include <sys/sysctl.h>
+#define _KERNEL
+#include <sys/file.h>
+#undef _KERNEL
+#endif
+
+#if defined(cygwin) || defined(mingw32)
+#include <winerror.h>
 #endif
 
 #include <net-snmp/net-snmp-includes.h>
@@ -43,9 +61,9 @@
 #include "tcp.h"
 #include "tcpTable.h"
 
-netsnmp_feature_child_of(tcptable_all, libnetsnmpmibs)
+netsnmp_feature_child_of(tcptable_all, libnetsnmpmibs);
 
-netsnmp_feature_child_of(tcp_count_connections, tcptable_all)
+netsnmp_feature_child_of(tcp_count_connections, tcptable_all);
 
 #ifdef hpux11
 #define	TCPTABLE_ENTRY_TYPE	mib_tcpConnEnt 
@@ -55,9 +73,8 @@ netsnmp_feature_child_of(tcp_count_connections, tcptable_all)
 #define	TCPTABLE_REMOTEADDRESS	RemAddress 
 #define	TCPTABLE_REMOTEPORT	RemPort 
 #define	TCPTABLE_IS_TABLE
-#else
 
-#ifdef solaris2
+#elif defined(solaris2)
 typedef struct netsnmp_tcpConnEntry_s netsnmp_tcpConnEntry;
 struct netsnmp_tcpConnEntry_s {
     mib2_tcpConnEntry_t   entry;
@@ -70,9 +87,8 @@ struct netsnmp_tcpConnEntry_s {
 #define	TCPTABLE_REMOTEADDRESS	entry.tcpConnRemAddress 
 #define	TCPTABLE_REMOTEPORT	entry.tcpConnRemPort 
 #define	TCPTABLE_IS_LINKED_LIST
-#else
 
-#ifdef HAVE_IPHLPAPI_H
+#elif defined(HAVE_IPHLPAPI_H)
 #include <iphlpapi.h>
 #define	TCPTABLE_ENTRY_TYPE	MIB_TCPROW
 #define	TCPTABLE_STATE		dwState 
@@ -81,9 +97,8 @@ struct netsnmp_tcpConnEntry_s {
 #define	TCPTABLE_REMOTEADDRESS	dwRemoteAddr 
 #define	TCPTABLE_REMOTEPORT	dwRemotePort 
 #define	TCPTABLE_IS_TABLE
-#else
 
-#ifdef linux
+#elif defined(linux)
 #define	TCPTABLE_ENTRY_TYPE	struct inpcb 
 #define	TCPTABLE_STATE		inp_state 
 #define	TCPTABLE_LOCALADDRESS	inp_laddr.s_addr 
@@ -92,11 +107,26 @@ struct netsnmp_tcpConnEntry_s {
 #define	TCPTABLE_REMOTEPORT	inp_fport
 #define	TCPTABLE_IS_LINKED_LIST
 
+#elif defined(HAVE_KVM_GETFILES)
+#define	TCPTABLE_ENTRY_TYPE	struct kinfo_file
+#define	TCPTABLE_STATE		t_state 
+#define	TCPTABLE_LOCALADDRESS	inp_laddru[0]
+#define	TCPTABLE_LOCALPORT	inp_lport
+#define	TCPTABLE_REMOTEADDRESS	inp_faddru[0]
+#define	TCPTABLE_REMOTEPORT	inp_fport
+#define	TCPTABLE_IS_TABLE
+
 #else			/* everything else */
 
 typedef struct netsnmp_inpcb_s netsnmp_inpcb;
 struct netsnmp_inpcb_s {
+#if __FreeBSD_version >= 1200026
+    struct xinpcb   pcb;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+    struct in4pcb    pcb;
+#else
     struct inpcb    pcb;
+#endif
     int             state;
     netsnmp_inpcb  *inp_next;
 };
@@ -104,15 +134,22 @@ struct netsnmp_inpcb_s {
 #define INP_NEXT_SYMBOL		inp_next
 #define	TCPTABLE_ENTRY_TYPE	netsnmp_inpcb 
 #define	TCPTABLE_STATE		state 
+#define	TCPTABLE_IS_LINKED_LIST
+#define INP_NEXT_SYMBOL		inp_next
+#if defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+#define	TCPTABLE_LOCALADDRESS	pcb.in4p_ip.ip_src.s_addr 
+#define	TCPTABLE_LOCALPORT	pcb.in4p_pcb.inp_lport
+#define	TCPTABLE_REMOTEADDRESS	pcb.in4p_ip.ip_dst.s_addr 
+#define	TCPTABLE_REMOTEPORT	pcb.in4p_pcb.inp_fport
+#define	TCPTABLE_TCPCB          pcb.in4p_pcb.inp_ppcb
+#else
 #define	TCPTABLE_LOCALADDRESS	pcb.inp_laddr.s_addr 
 #define	TCPTABLE_LOCALPORT	pcb.inp_lport
 #define	TCPTABLE_REMOTEADDRESS	pcb.inp_faddr.s_addr 
 #define	TCPTABLE_REMOTEPORT	pcb.inp_fport
-#define	TCPTABLE_IS_LINKED_LIST
+#define TCPTABLE_TCPCB		pcb.inp_ppcb
+#endif
 
-#endif                          /* linux */
-#endif                          /* WIN32 cygwin */
-#endif                          /* solaris2 */
 #endif                          /* hpux11 */
 
 				/* Head of linked list, or root of table */
@@ -170,6 +207,7 @@ init_tcpTable(void)
      */
     iinfo      = SNMP_MALLOC_TYPEDEF(netsnmp_iterator_info);
     if (!iinfo) {
+        SNMP_FREE(table_info);
         return;
     }
     iinfo->get_first_data_point = tcpTable_first_entry;
@@ -213,6 +251,9 @@ tcpTable_handler(netsnmp_mib_handler          *handler,
     netsnmp_variable_list *requestvb;
     netsnmp_table_request_info *table_info;
     TCPTABLE_ENTRY_TYPE	  *entry;
+#ifdef HAVE_KVM_GETFILES
+    int      StateMap[] = { 1, 2, 3, 4, 5, 8, 6, 10, 9, 7, 11 };
+#endif
     oid      subid;
     long     port;
     long     state;
@@ -236,7 +277,11 @@ tcpTable_handler(netsnmp_mib_handler          *handler,
 
             switch (subid) {
             case TCPCONNSTATE:
+#ifdef HAVE_KVM_GETFILES
+                state = StateMap[entry->TCPTABLE_STATE];
+#else
                 state = entry->TCPTABLE_STATE;
+#endif
 	        snmp_set_var_typed_value(requestvb, ASN_INTEGER,
                                  (u_char *)&state, sizeof(state));
                 break;
@@ -301,7 +346,9 @@ tcpTable_handler(netsnmp_mib_handler          *handler,
 #ifndef NETSNMP_FEATURE_REMOVE_TCP_COUNT_CONNECTIONS
 int
 TCP_Count_Connections( void ) {
+#if (defined(CAN_USE_SYSCTL) && defined(TCPCTL_PCBLIST))
     tcpTable_load(NULL, NULL);
+#endif
     return tcp_estab;
 }
 #endif /* NETSNMP_FEATURE_REMOVE_TCP_COUNT_CONNECTIONS */
@@ -342,10 +389,15 @@ tcpTable_next_entry( void **loop_context,
                      netsnmp_variable_list *index,
                      netsnmp_iterator_info *data)
 {
-    int i = (int)*loop_context;
+    int i = (intptr_t)*loop_context;
     netsnmp_variable_list *idx;
     long port;
 
+#ifdef HAVE_KVM_GETFILES
+    while (i < tcp_size && (tcp_head[i].so_protocol != IPPROTO_TCP
+	    || tcp_head[i].so_family != AF_INET))
+	i++;
+#endif
     if (tcp_size < i)
         return NULL;
 
@@ -353,7 +405,7 @@ tcpTable_next_entry( void **loop_context,
      * Set up the indexing for the specified row...
      */
     idx = index;
-#if defined (WIN32) || defined (cygwin)
+#if defined (WIN32) || defined (cygwin) || defined(openbsd5)
     port = ntohl((u_long)tcp_head[i].TCPTABLE_LOCALADDRESS);
     snmp_set_var_value(idx, (u_char *)&port,
                                 sizeof(tcp_head[i].TCPTABLE_LOCALADDRESS));
@@ -367,7 +419,7 @@ tcpTable_next_entry( void **loop_context,
     snmp_set_var_value(idx, (u_char*)&port, sizeof(port));
 
     idx = idx->next_variable;
-#if defined (WIN32) || defined (cygwin)
+#if defined (WIN32) || defined (cygwin) || defined(openbsd5)
     port = ntohl((u_long)tcp_head[i].TCPTABLE_REMOTEADDRESS);
     snmp_set_var_value(idx, (u_char *)&port,
                                 sizeof(tcp_head[i].TCPTABLE_REMOTEADDRESS));
@@ -385,7 +437,7 @@ tcpTable_next_entry( void **loop_context,
      * and update the loop context ready for the next one.
      */
     *data_context = (void*)&tcp_head[i];
-    *loop_context = (void*)++i;
+    *loop_context = (void*)(intptr_t)++i;
 
     return index;
 }
@@ -398,8 +450,9 @@ tcpTable_free(netsnmp_cache *cache, void *magic)
 		/* the allocated structure is a count followed by table entries */
 		free((char *)(tcp_head) - sizeof(DWORD));
 	}
+#elif defined(openbsd5)
 #else
-	if (tcp_head)
+    if (tcp_head)
         free(tcp_head);
 #endif
     tcp_head  = NULL;
@@ -558,16 +611,15 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
     DEBUGMSGTL(("mibII/tcpTable", "Failed to load TCP Table (hpux11)\n"));
     return -1;
 }
-#else                           /* hpux11 */
 
-#ifdef linux
+#elif defined(linux)
 
 /*  see <netinet/tcp.h> */
 #define TCP_ALL ((1 << (TCP_CLOSING + 1)) - 1)
 
-const static int linux_states[12] = { 1, 5, 3, 4, 6, 7, 11, 1, 8, 9, 2, 10 };
+static const int linux_states[12] = { 1, 5, 3, 4, 6, 7, 11, 1, 8, 9, 2, 10 };
 
-#if HAVE_NETLINK_NETLINK_H
+#ifdef HAVE_NETLINK_NETLINK_H
 
 #if !defined(HAVE_LIBNL3)
 /* libnl3 API implemented on top of the libnl1 API */
@@ -654,13 +706,23 @@ tcpTable_load_netlink(void)
 				break;
 			}
 
-			r = nlmsg_data(h);
+			/** handle the case where the kernel doesn't have netlink socket 
+			 * diagnostics enabled */
+			if ((h->nlmsg_type == NLMSG_ERROR) && 
+				(((struct nlmsgerr *)r)->error != 0)) {
+				int nlerr = ((struct nlmsgerr *)r)->error;
+				running = 0;
+				DEBUGMSGTL(("mibII/tcpTable", "netlink error: %d\n", nlerr));
+				snmp_log(LOG_ERR, "snmpd: netlink error: %d\n", nlerr);
+				break;
+			}
 
 			if (r->idiag_family != AF_INET) {
 				h = nlmsg_next(h, &len);
 				continue;
 			}
 
+                        memset(&pcb, 0, sizeof(pcb));
 			memcpy(&pcb.inp_laddr.s_addr, r->id.idiag_src, r->idiag_family == AF_INET ? 4 : 6);
 			memcpy(&pcb.inp_faddr.s_addr, r->id.idiag_dst, r->idiag_family == AF_INET ? 4 : 6);
 
@@ -707,7 +769,7 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
 
     tcpTable_free(cache, NULL);
 
-#if HAVE_NETLINK_NETLINK_H
+#ifdef HAVE_NETLINK_NETLINK_H
 	if (tcpTable_load_netlink() == 0) {
 		return 0;
 	}
@@ -729,6 +791,7 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
         unsigned int    lp, fp;
         int             state, uid;
 
+        memset(&pcb, 0, sizeof(pcb));
         if (6 != sscanf(line,
                         "%*d: %x:%x %x:%x %x %*X:%*X %*X:%*X %*X %d",
                         &pcb.inp_laddr.s_addr, &lp,
@@ -757,9 +820,9 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
     DEBUGMSGTL(("mibII/tcpTable", "Loaded TCP Table (linux)\n"));
     return 0;
 }
-#else                           /* linux */
 
-#ifdef solaris2
+#elif defined(solaris2)
+
 static int
 TCP_Cmp(void *addr, void *ep)
 {
@@ -816,9 +879,30 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
     DEBUGMSGTL(("mibII/tcpTable", "Failed to load TCP Table (solaris)\n"));
     return -1;
 }
-#else                           /* solaris2 */
 
-#if defined (WIN32) || defined (cygwin)
+#elif defined(HAVE_KVM_GETFILES)
+
+int
+tcpTable_load(netsnmp_cache *cache, void *vmagic)
+{
+    int i, count;
+    int      StateMap[] = { 1, 2, 3, 4, 5, 8, 6, 10, 9, 7, 11 };
+
+    tcp_head = kvm_getfiles(kd, KERN_FILE_BYFILE, DTYPE_SOCKET, sizeof(struct kinfo_file), &count);
+    tcp_size = count;
+    for (i = 0; i < tcp_size; i++) {
+	if (tcp_head[i].so_protocol != IPPROTO_TCP || tcp_head[i].so_family != AF_INET)
+	    continue;
+	if (StateMap[tcp_head[i].TCPTABLE_STATE] == 5 /* established */ ||
+	    StateMap[tcp_head[i].TCPTABLE_STATE] == 8 /*  closeWait  */ )
+	    tcp_estab++;
+    }
+
+    return 0;
+}
+
+#elif defined (WIN32) || defined (cygwin)
+
 int
 tcpTable_load(netsnmp_cache *cache, void *vmagic)
 {
@@ -864,9 +948,8 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
 		free(pTcpTable);
     return -1;
 }
-#else                           /* WIN32 cygwin */
 
-#if (defined(NETSNMP_CAN_USE_SYSCTL) && defined(TCPCTL_PCBLIST))
+#elif (defined(NETSNMP_CAN_USE_SYSCTL) && defined(TCPCTL_PCBLIST))
 
 #if defined(freebsd4) || defined(darwin)
     #define NS_ELEM struct xtcpcb
@@ -923,14 +1006,26 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
         nnew = SNMP_MALLOC_TYPEDEF(netsnmp_inpcb);
         if (!nnew)
             break;
+#if __FreeBSD_version >= 1200026
+        nnew->state = StateMap[((NS_ELEM *) xig)->t_state];
+#else
         nnew->state = StateMap[((NS_ELEM *) xig)->xt_tp.t_state];
+#endif
         if (nnew->state == 5 /* established */ ||
             nnew->state == 8 /*  closeWait  */ )
             tcp_estab++;
         memcpy(&(nnew->pcb), &(((NS_ELEM *) xig)->xt_inp),
+#if __FreeBSD_version >= 1200026
+                           sizeof(struct xinpcb));
+#else
                            sizeof(struct inpcb));
+#endif
 
+#ifdef INP_ISIPV6
+	if (INP_ISIPV6(&nnew->pcb))
+#else
 	if (nnew->pcb.inp_vflag & INP_IPV6)
+#endif
 	    free(nnew);
 	else {
 	    nnew->inp_next = tcp_head;
@@ -953,8 +1048,8 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
 }
 #undef NS_ELEM
 
-#else		/* (defined(NETSNMP_CAN_USE_SYSCTL) && defined(TCPCTL_PCBLIST)) */
-#ifdef PCB_TABLE
+#elif defined(PCB_TABLE)
+
 int
 tcpTable_load(netsnmp_cache *cache, void *vmagic)
 {
@@ -974,18 +1069,22 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
     /*
      *  Set up a linked list
      */
-    entry  = table.inpt_queue.cqh_first;
+#if defined(__NetBSD__) && __NetBSD_Version__ >= 699002800
+    entry  = TAILQ_FIRST(&table.inpt_queue);
+#else
+    entry  = table.INP_FIRST_SYMBOL;
+#endif
     while (entry) {
    
         nnew = SNMP_MALLOC_TYPEDEF(netsnmp_inpcb);
         if (!nnew)
             break;
-        if (!NETSNMP_KLOOKUP(entry, (char *)&(nnew->pcb), sizeof(struct inpcb))) {
+        if (!NETSNMP_KLOOKUP(entry, (char *)&(nnew->pcb), sizeof(nnew->pcb))) {
             DEBUGMSGTL(("mibII/tcpTable:TcpTable_load", "klookup failed\n"));
             break;
         }
 
-        if (!NETSNMP_KLOOKUP(nnew->pcb.inp_ppcb, (char *)&tcpcb, sizeof(struct tcpcb))) {
+        if (!NETSNMP_KLOOKUP(nnew->TCPTABLE_TCPCB, (char *)&tcpcb, sizeof(struct tcpcb))) {
             DEBUGMSGTL(("mibII/tcpTable:TcpTable_load", "klookup failed\n"));
             break;
         }
@@ -998,7 +1097,11 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
 	nnew->inp_next = tcp_head;
 	tcp_head   = nnew;
 
-        if (entry == table.inpt_queue.cqh_first)
+#if defined(__NetBSD__) && __NetBSD_Version__ >= 699002800
+        if (entry == TAILQ_FIRST(&table.inpt_queue))
+#else
+        if (entry == table.INP_FIRST_SYMBOL)
+#endif
             break;
     }
 
@@ -1010,8 +1113,8 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
     return -1;
 }
 
-#else				/* PCB_TABLE */
-#ifdef TCP_SYMBOL
+#elif defined(TCP_SYMBOL)
+
 int
 tcpTable_load(netsnmp_cache *cache, void *vmagic)
 {
@@ -1070,17 +1173,11 @@ tcpTable_load(netsnmp_cache *cache, void *vmagic)
     return -1;
 }
 
-#else				/* UDB_SYMBOL */
+#else				/* TCP_SYMBOL */
 int
 tcpTable_load(netsnmp_cache *cache, void *vmagic)
 {
     DEBUGMSGTL(("mibII/tcpTable", "Loading TCP Table not implemented\n"));
     return -1;
 }
-#endif				/* UDB_SYMBOL */
-#endif				/* PCB_TABLE */
-#endif		/* (defined(NETSNMP_CAN_USE_SYSCTL) && defined(TCPCTL_PCBLIST)) */
-#endif                          /* WIN32 cygwin */
-#endif                          /* linux */
-#endif                          /* solaris2 */
-#endif                          /* hpux11 */
+#endif				/* TCP_SYMBOL */

@@ -5,6 +5,13 @@
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
+#include <net-snmp/data_access/interface.h>
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#include "util_funcs.h"
 
 /*
  * include our parent header 
@@ -122,6 +129,9 @@ dot3stats_interface_ioctl_ifindex_get (int fd, const char *name) {
     struct ifreq    ifrq;
     int rc = 0;
 
+    if (!netsnmp_access_interface_include(name))
+        return 0;
+
     DEBUGMSGTL(("access:dot3StatsTable:interface_ioctl_ifindex_get", "called\n"));
                  
     rc = _dot3Stats_ioctl_get(fd, SIOCGIFINDEX, &ifrq, name);
@@ -137,7 +147,7 @@ dot3stats_interface_ioctl_ifindex_get (int fd, const char *name) {
 #endif /* SIOCGIFINDEX */
 }
 
-# if HAVE_LINUX_RTNETLINK_H /* { NETLINK */
+# if defined(HAVE_LINUX_RTNETLINK_H) /* { NETLINK */
 /*
  * The following code is based upon code I got from Stephen Hemminger
  */
@@ -154,7 +164,7 @@ struct rtnl_handle {
 
 struct ifstat_ent {
     struct ifstat_ent *next;
-    const char *name;
+    char *name;
     int ifindex;
     struct rtnl_link_stats stats;
 };
@@ -465,6 +475,7 @@ _dot3Stats_netlink_get_errorcntrs(dot3StatsTable_rowreq_ctx *rowreq_ctx, const c
             done = 1;
         }
         kern_db = ke->next;
+        free(ke->name);
         free(ke);
     }
 
@@ -740,6 +751,11 @@ interface_ioctl_dot3stats_get (dot3StatsTable_rowreq_ctx *rowreq_ctx, int fd, co
             rowreq_ctx->column_exists_flags |= COLUMN_DOT3STATSALIGNMENTERRORS_FLAG;
         }
 
+        if (DOT3STATSFCSERRORS(s)) {
+            data->dot3StatsFCSErrors = (u_long)eth_stats->data[i];
+            rowreq_ctx->column_exists_flags |= COLUMN_DOT3STATSFCSERRORS_FLAG;
+        }
+
         if (DOT3STATSMULTIPLECOLLISIONFRAMES(s)) {
             data->dot3StatsMultipleCollisionFrames = (u_long)eth_stats->data[i];
             rowreq_ctx->column_exists_flags |= COLUMN_DOT3STATSMULTIPLECOLLISIONFRAMES_FLAG;
@@ -759,6 +775,10 @@ interface_ioctl_dot3stats_get (dot3StatsTable_rowreq_ctx *rowreq_ctx, int fd, co
             data->dot3StatsExcessiveCollisions = (u_long)eth_stats->data[i];
             rowreq_ctx->column_exists_flags |= COLUMN_DOT3STATSEXCESSIVECOLLISIONS_FLAG;
         }
+        if (DOT3STATSDEFERREDTRANSMISSIONS(s)) {
+            data->dot3StatsDeferredTransmissions = (u_long)eth_stats->data[i];
+            rowreq_ctx->column_exists_flags |= COLUMN_DOT3STATSDEFERREDTRANSMISSIONS_FLAG;
+        }
     }
 
     free(eth_strings);
@@ -773,56 +793,34 @@ interface_ioctl_dot3stats_get (dot3StatsTable_rowreq_ctx *rowreq_ctx, int fd, co
 
 /*
  * @retval  0 success
- * @retval -1 ETHTOOL_GSET failed
+ * @retval -1 Both ETHTOOL_GLINKSETTINGS and ETHTOOL_GSET failed
  * @retval -2 function not supported if HAVE_LINUX_ETHTOOL_H not defined
  */
 
 int
-interface_ioctl_dot3stats_duplex_get(dot3StatsTable_rowreq_ctx *rowreq_ctx, int fd, const char* name) {
-
-#ifdef HAVE_LINUX_ETHTOOL_H
+interface_ioctl_dot3stats_duplex_get(dot3StatsTable_rowreq_ctx *rowreq_ctx, int fd, const char* name)
+{
     dot3StatsTable_data *data = &rowreq_ctx->data;
-    struct ethtool_cmd edata;
-    struct ifreq ifr;
+    struct netsnmp_linux_link_settings nlls;
     int err;
 
-    DEBUGMSGTL(("access:dot3StatsTable:interface_ioctl_dot3Stats_duplex_get",
-                "called\n"));
-
-    memset(&edata, 0, sizeof (edata));
-    memset(&ifr, 0, sizeof (ifr));
-    edata.cmd = ETHTOOL_GSET;
-    ifr.ifr_data = (char *)&edata;
-
-    err = _dot3Stats_ioctl_get (fd, SIOCETHTOOL, &ifr, name);
-    if (err < 0) {
-        DEBUGMSGTL(("access:dot3StatsTable:interface_ioctl_dot3Stats_duplex_get",
-                    "ETHTOOL_GSET failed\n"));
-
-        return -1;
-    }
-    
+    err = netsnmp_get_link_settings(&nlls, fd, name);
     if (err == 0) {
         rowreq_ctx->column_exists_flags |= COLUMN_DOT3STATSDUPLEXSTATUS_FLAG;
-        switch (edata.duplex) {
+        switch (nlls.duplex) {
         case DUPLEX_HALF:
-            data->dot3StatsDuplexStatus = (u_long) DOT3STATSDUPLEXSTATUS_HALFDUPLEX;
+            data->dot3StatsDuplexStatus = DOT3STATSDUPLEXSTATUS_HALFDUPLEX;
             break;
         case DUPLEX_FULL:
-            data->dot3StatsDuplexStatus = (u_long) DOT3STATSDUPLEXSTATUS_FULLDUPLEX;
+            data->dot3StatsDuplexStatus = DOT3STATSDUPLEXSTATUS_FULLDUPLEX;
             break;
         default:
-            data->dot3StatsDuplexStatus = (u_long) DOT3STATSDUPLEXSTATUS_UNKNOWN;
+            data->dot3StatsDuplexStatus = DOT3STATSDUPLEXSTATUS_UNKNOWN;
             break;
-        };
+        }
     }
 
-    DEBUGMSGTL(("access:dot3StatsTable:interface_ioctl_dot3Stats_duplex_get",
-                "ETHTOOL_GSET processed\n"));
     return err;
-#else
-    return -2;
-#endif
 }
 
 
@@ -894,8 +892,8 @@ _dot3Stats_ioctl_get(int fd, int which, struct ifreq *ifrq, const char* name)
      */
     if(NULL == name) {
         DEBUGMSGTL(("access:dot3StatsTable:ioctl",
-                    "_dot3Stats_ioctl_get invalid ifname '%s'\n", name));
-        snmp_log (LOG_ERR, "access:dot3StatsTable:ioctl, _dot3Stats_ioctl_get error on interface '%s'\n", name);
+                    "_dot3Stats_ioctl_get interface name is NULL"));
+        snmp_log (LOG_ERR, "access:dot3StatsTable:ioctl, _dot3Stats_ioctl_get interface name is NULL");
         return -1;
     }
 

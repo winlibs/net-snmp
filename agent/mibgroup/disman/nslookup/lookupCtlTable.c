@@ -21,7 +21,7 @@
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-netsnmp_feature_require(header_complex_find_entry)
+netsnmp_feature_require(header_complex_find_entry);
 #endif /* NETSNMP_NO_WRITE_SUPPORT */
 
 #include <arpa/inet.h>
@@ -217,22 +217,19 @@ lookupResultsTable_add(struct lookupTable_data *thedata)
 void
 lookupCtlTable_cleaner(struct header_complex_index *thestuff)
 {
-    struct header_complex_index *hciptr = NULL;
-    struct lookupTable_data *StorageDel = NULL;
+    struct header_complex_index *hciptr, *nhciptr;
+    struct lookupTable_data *StorageDel;
+
     DEBUGMSGTL(("lookupCtlTable", "cleanerout  "));
-    for (hciptr = thestuff; hciptr != NULL; hciptr = hciptr->next) {
-        StorageDel =
-            header_complex_extract_entry(&lookupCtlTableStorage, hciptr);
+    for (hciptr = thestuff; hciptr; hciptr = nhciptr) {
+        nhciptr = hciptr->next;
+        StorageDel = header_complex_extract_entry(&lookupCtlTableStorage,
+                                                  hciptr);
         if (StorageDel != NULL) {
             free(StorageDel->lookupCtlOwnerIndex);
-            StorageDel->lookupCtlOwnerIndex = NULL;
             free(StorageDel->lookupCtlOperationName);
-            StorageDel->lookupCtlOperationName = NULL;
             free(StorageDel->lookupCtlTargetAddress);
-            StorageDel->lookupCtlTargetAddress = NULL;
             free(StorageDel);
-            StorageDel = NULL;
-
         }
         DEBUGMSGTL(("lookupCtlTable", "cleaner  "));
     }
@@ -564,7 +561,8 @@ run_lookup(struct lookupTable_data *item)
             while (lookup->h_aliases[i]) {
                 temp = add_result(item, n, INETADDRESSTYPE_DNS,
                             lookup->h_aliases[i], strlen(lookup->h_aliases[i]));
-                current->next = temp;
+                if (current)
+                    current->next = temp;
                 current = temp;
                 i = i + 1;
                 n = n + 1;
@@ -581,7 +579,7 @@ run_lookup(struct lookupTable_data *item)
 
     else if (addressType == INETADDRESSTYPE_DNS) {
         struct hostent *lookup;
-#if HAVE_GETADDRINFO
+#ifdef HAVE_GETADDRINFO
         int             res;
         struct addrinfo *ais;
         struct addrinfo hints = { 0, AF_INET6, SOCK_DGRAM };
@@ -628,7 +626,7 @@ run_lookup(struct lookupTable_data *item)
             }
         }
 
-#if HAVE_GETADDRINFO
+#ifdef HAVE_GETADDRINFO
         netsnmp_get_monotonic_clock(&tpstart);
         res = netsnmp_getaddrinfo(address, NULL, &hints, &ais);
         netsnmp_get_monotonic_clock(&tpend);
@@ -678,7 +676,7 @@ run_lookup(struct lookupTable_data *item)
             }
             freeaddrinfo(ais);
         }
-#elif HAVE_GETHOSTBYNAME2
+#elif defined(HAVE_GETHOSTBYNAME2)
         netsnmp_get_monotonic_clock(&tpstart);
         lookup = gethostbyname2(address, AF_INET6);
         netsnmp_get_monotonic_clock(&tpend);
@@ -887,8 +885,8 @@ modify_lookupCtlRc(struct lookupTable_data *thedata, long val)
 int
 lookupResultsTable_del(struct lookupTable_data *thedata)
 {
-    struct header_complex_index *hciptr2 = NULL;
-    struct lookupResultsTable_data *StorageDel = NULL;
+    struct header_complex_index *hciptr2, *nhciptr2;
+    struct lookupResultsTable_data *StorageDel;
     netsnmp_variable_list *vars = NULL;
     oid             newoid[MAX_OID_LEN];
     size_t          newoid_len;
@@ -901,11 +899,10 @@ lookupResultsTable_del(struct lookupTable_data *thedata)
     memset(newoid, '\0', MAX_OID_LEN * sizeof(oid));
     header_complex_generate_oid(newoid, &newoid_len, NULL, 0, vars);
 
-
     snmp_free_varbind(vars);
     vars = NULL;
-    for (hciptr2 = lookupResultsTableStorage; hciptr2 != NULL;
-         hciptr2 = hciptr2->next) {
+    for (hciptr2 = lookupResultsTableStorage; hciptr2; hciptr2 = nhciptr2) {
+        nhciptr2 = hciptr2->next;
         if (snmp_oid_compare(newoid, newoid_len, hciptr2->name, newoid_len)
             == 0) {
             StorageDel =
@@ -918,7 +915,6 @@ lookupResultsTable_del(struct lookupTable_data *thedata)
                 SNMP_FREE(StorageDel);
             }
             DEBUGMSGTL(("lookupResultsTable", "delete  success!\n"));
-
         }
     }
     return SNMPERR_SUCCESS;

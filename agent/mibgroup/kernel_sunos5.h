@@ -126,28 +126,28 @@ typedef struct mibmap {
 typedef unsigned long TimeTicks;
 
 typedef struct mib2_ifEntry {
-    int             ifIndex;    /* ifEntry 1 */
+    unsigned int    ifIndex;    /* ifEntry 1 */
     DeviceName      ifDescr;    /* ifEntry 2 */
-    int             ifType;     /* ifEntry 3 */
-    int             ifMtu;      /* ifEntry 4 */
-    Gauge           ifSpeed;    /* ifEntry 5 */
+    unsigned int    ifType;     /* ifEntry 3 */
+    unsigned int    ifMtu;      /* ifEntry 4 */
+    int             ifSpeed;    /* ifEntry 5 */
     PhysAddress     ifPhysAddress;      /* ifEntry 6 */
-    int             ifAdminStatus;      /* ifEntry 7 */
-    int             ifOperStatus;       /* ifEntry 8 */
+    unsigned int    ifAdminStatus;      /* ifEntry 7 */
+    unsigned int    ifOperStatus;       /* ifEntry 8 */
     TimeTicks       ifLastChange;       /* ifEntry 9 */
-    Counter         ifInOctets; /* ifEntry 10 */
-    Counter         ifInUcastPkts;      /* ifEntry 11 */
-    Counter         ifInNUcastPkts;     /* ifEntry 12 */
-    Counter         ifInDiscards;       /* ifEntry 13 */
-    Counter         ifInErrors; /* ifEntry 14 */
-    Counter         ifInUnknownProtos;  /* ifEntry 15 */
-    Counter         ifOutOctets;        /* ifEntry 16 */
-    Counter         ifOutUcastPkts;     /* ifEntry 17 */
-    Counter         ifOutNUcastPkts;    /* ifEntry 18 */
-    Counter         ifOutDiscards;      /* ifEntry 19 */
-    Counter         ifOutErrors;        /* ifEntry 20 */
+    int             ifInOctets; /* ifEntry 10 */
+    int             ifInUcastPkts;      /* ifEntry 11 */
+    int             ifInNUcastPkts;     /* ifEntry 12 */
+    int             ifInDiscards;       /* ifEntry 13 */
+    int             ifInErrors; /* ifEntry 14 */
+    int             ifInUnknownProtos;  /* ifEntry 15 */
+    int             ifOutOctets;        /* ifEntry 16 */
+    int             ifOutUcastPkts;     /* ifEntry 17 */
+    int             ifOutNUcastPkts;    /* ifEntry 18 */
+    int             ifOutDiscards;      /* ifEntry 19 */
+    int             ifOutErrors;        /* ifEntry 20 */
     Gauge           ifOutQLen;  /* ifEntry 21 */
-    int             ifSpecific; /* ifEntry 22 */
+    unsigned int    ifSpecific; /* ifEntry 22 */
 
     /*
      * Support ifXTable.
@@ -164,8 +164,10 @@ typedef struct mib2_ifEntry {
     /*
      * Counters not part of ifTable or ifXTable
      */
-    Counter         ifCollisions;
+    int             ifCollisions;
     int             flags;           /* interface flags (IFF_*) */
+
+    Gauge           ifHighSpeed;
 } mib2_ifEntry_t;
 
 /*-
@@ -208,19 +210,4 @@ extern          "C" {
 }
 #endif
 #endif
-/*-
- * These variables describe the formatting of this file.  If you don't like the
- * template defaults, feel free to change them here (not in your .emacs file).
- *
- * Local Variables:
- * comment-column: 32
- * c-indent-level: 4
- * c-continued-statement-offset: 4
- * c-brace-offset: -4
- * c-argdecl-indent: 0
- * c-label-offset: -4
- * fill-column: 79
- * fill-prefix: " * "
- * End:
- */
 #endif

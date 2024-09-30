@@ -1,19 +1,24 @@
 /*
  * agent_read_config.c
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 
-#if HAVE_SYS_PARAM_H
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #else
 #include <sys/types.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -22,36 +27,36 @@
 #include <ctype.h>
 #include <errno.h>
 
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_NETINET_IN_SYSTM_H
+#ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
 #endif
-#if HAVE_NETINET_IP_H
+#ifdef HAVE_NETINET_IP_H
 #include <netinet/ip.h>
 #endif
 #ifdef NETSNMP_ENABLE_IPV6
-#if HAVE_NETINET_IP6_H
+#ifdef HAVE_NETINET_IP6_H
 #include <netinet/ip6.h>
 #endif
 #endif
-#if HAVE_SYS_QUEUE_H
+#ifdef HAVE_SYS_QUEUE_H
 #include <sys/queue.h>
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
-#if HAVE_SYS_SOCKETVAR_H
+#ifdef HAVE_SYS_SOCKETVAR_H
 #ifndef dynix
 #include <sys/socketvar.h>
 #else
@@ -59,31 +64,31 @@
 #endif
 #endif
 #endif
-#if HAVE_SYS_STREAM_H
+#ifdef HAVE_SYS_STREAM_H
 #   ifdef sysv5UnixWare7
 #      define _KMEMUSER 1   /* <sys/stream.h> needs this for queue_t */
 #   endif
 #include <sys/stream.h>
 #endif
-#if HAVE_NET_ROUTE_H
+#ifdef HAVE_NET_ROUTE_H
 #include <net/route.h>
 #endif
-#if HAVE_NETINET_IP_VAR_H
+#ifdef HAVE_NETINET_IP_VAR_H
 #include <netinet/ip_var.h>
 #endif
 #ifdef NETSNMP_ENABLE_IPV6
-#if HAVE_NETNETSNMP_ENABLE_IPV6_IP6_VAR_H
+#ifdef HAVE_NETNETSNMP_ENABLE_IPV6_IP6_VAR_H
 #include <netinet6/ip6_var.h>
 #endif
 #endif
-#if HAVE_NETINET_IN_PCB_H
+#ifdef HAVE_NETINET_IN_PCB_H
 #include <netinet/in_pcb.h>
 #endif
-#if HAVE_INET_MIB2_H
+#ifdef HAVE_INET_MIB2_H
 #include <inet/mib2.h>
 #endif
 
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #ifdef HAVE_PWD_H
@@ -107,13 +112,38 @@
 #include "agent_module_includes.h"
 #include "mib_module_includes.h"
 
-netsnmp_feature_child_of(agent_read_config_all, libnetsnmpagent)
+netsnmp_feature_child_of(agent_read_config_all, libnetsnmpagent);
 
-netsnmp_feature_child_of(snmpd_unregister_config_handler, agent_read_config_all)
+netsnmp_feature_child_of(snmpd_unregister_config_handler, agent_read_config_all);
+
+void netsnmp_set_agent_user_id(int uid)
+{
+    static int agent_user_id = -1;
+
+    if (agent_user_id != -1 && uid != agent_user_id) {
+        snmp_log(LOG_ERR, "User ID has already been set -- can not change\n");
+        return;
+    }
+    agent_user_id = uid;
+    netsnmp_ds_set_int(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_USERID, uid);
+}
+
+void netsnmp_set_agent_group_id(int gid)
+{
+    static int agent_group_id = -1;
+
+    if (agent_group_id != -1 && gid != agent_group_id) {
+        snmp_log(LOG_ERR, "Group ID has already been set -- can not change\n");
+        return;
+    }
+    agent_group_id = gid;
+    netsnmp_ds_set_int(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_GROUPID,
+                       gid);
+}
 
 #ifdef HAVE_UNISTD_H
 void
-snmpd_set_agent_user(const char *token, char *cptr)
+netsnmp_parse_agent_user(const char *token, char *cptr)
 {
     if (cptr[0] == '#') {
         char           *ecp;
@@ -123,8 +153,7 @@ snmpd_set_agent_user(const char *token, char *cptr)
         if (*ecp != 0) {
             config_perror("Bad number");
 	} else {
-	    netsnmp_ds_set_int(NETSNMP_DS_APPLICATION_ID, 
-			       NETSNMP_DS_AGENT_USERID, uid);
+            netsnmp_set_agent_user_id(uid);
 	}
 #if defined(HAVE_GETPWNAM) && defined(HAVE_PWD_H)
     } else {
@@ -132,8 +161,7 @@ snmpd_set_agent_user(const char *token, char *cptr)
 
         info = getpwnam(cptr);
         if (info)
-            netsnmp_ds_set_int(NETSNMP_DS_APPLICATION_ID, 
-                               NETSNMP_DS_AGENT_USERID, info->pw_uid);
+            netsnmp_set_agent_user_id(info->pw_uid);
         else
             config_perror("User not found in passwd database");
         endpwent();
@@ -142,7 +170,7 @@ snmpd_set_agent_user(const char *token, char *cptr)
 }
 
 void
-snmpd_set_agent_group(const char *token, char *cptr)
+netsnmp_parse_agent_group(const char *token, char *cptr)
 {
     if (cptr[0] == '#') {
         char           *ecp;
@@ -151,8 +179,7 @@ snmpd_set_agent_group(const char *token, char *cptr)
         if (*ecp != 0) {
             config_perror("Bad number");
 	} else {
-            netsnmp_ds_set_int(NETSNMP_DS_APPLICATION_ID, 
-			       NETSNMP_DS_AGENT_GROUPID, gid);
+            netsnmp_set_agent_group_id(gid);
 	}
 #if defined(HAVE_GETGRNAM) && defined(HAVE_GRP_H)
     } else {
@@ -160,8 +187,7 @@ snmpd_set_agent_group(const char *token, char *cptr)
 
         info = getgrnam(cptr);
         if (info)
-            netsnmp_ds_set_int(NETSNMP_DS_APPLICATION_ID, 
-                               NETSNMP_DS_AGENT_GROUPID, info->gr_gid);
+            netsnmp_set_agent_group_id(info->gr_gid);
         else
             config_perror("Group not found in group database");
         endgrent();
@@ -188,7 +214,6 @@ snmpd_set_agent_address(const char *token, char *cptr)
          * append to the older specification string 
          */
         snprintf(buf, sizeof(buf), "%s,%s", ptr, cptr);
-	buf[sizeof(buf) - 1] = '\0';
     } else {
         strlcpy(buf, cptr, sizeof(buf));
     }
@@ -223,22 +248,22 @@ init_agent_read_config(const char *app)
         register_app_config_handler("trapsink",
                                     snmpd_parse_config_trapsink,
                                     snmpd_free_trapsinks,
-                                    "host [community] [port]");
+                                    "[-profile p] [-name n] [-tag t] host [community] [port]");
 #endif
 #ifndef NETSNMP_DISABLE_SNMPV2C
         register_app_config_handler("trap2sink",
                                     snmpd_parse_config_trap2sink, 
                                     snmpd_free_trapsinks,
-                                    "host [community] [port]");
+                                    "[-profile p] [-name n] [-tag t] host [community] [port]");
         register_app_config_handler("informsink",
                                     snmpd_parse_config_informsink,
                                     snmpd_free_trapsinks,
-                                    "host [community] [port]");
+                                    "[-profile p] [-name n] [-tag t] host [community] [port]");
 #endif
         register_app_config_handler("trapsess",
                                     snmpd_parse_config_trapsess,
                                     snmpd_free_trapsinks,
-                                    "[snmpcmdargs] host");
+                                    "[-profile p] [-name n] [-tag t] [snmpcmdargs] host");
     }
 #if !defined(NETSNMP_DISABLE_SNMPV1) || !defined(NETSNMP_DISABLE_SNMPV2C)
     register_app_config_handler("trapcommunity",
@@ -251,9 +276,9 @@ init_agent_read_config(const char *app)
                                NETSNMP_DS_AGENT_TRAP_ADDR);
 #ifdef HAVE_UNISTD_H
     register_app_config_handler("agentuser",
-                                snmpd_set_agent_user, NULL, "userid");
+                                netsnmp_parse_agent_user, NULL, "userid");
     register_app_config_handler("agentgroup",
-                                snmpd_set_agent_group, NULL, "groupid");
+                                netsnmp_parse_agent_group, NULL, "groupid");
 #endif
 #ifndef NETSNMP_NO_LISTEN_SUPPORT
     register_app_config_handler("agentaddress",
@@ -275,6 +300,18 @@ init_agent_read_config(const char *app)
     netsnmp_ds_register_config(ASN_INTEGER, app, "maxGetbulkResponses",
                                NETSNMP_DS_APPLICATION_ID,
                                NETSNMP_DS_AGENT_MAX_GETBULKRESPONSES);
+    netsnmp_ds_register_config(ASN_INTEGER, app, "avgBulkVarbindSize",
+                               NETSNMP_DS_APPLICATION_ID,
+                               NETSNMP_DS_AGENT_AVG_BULKVARBINDSIZE);
+#ifndef NETSNMP_NO_PDU_STATS
+    netsnmp_ds_register_config(ASN_INTEGER, app, "pduStatsMax",
+                               NETSNMP_DS_APPLICATION_ID,
+                               NETSNMP_DS_AGENT_PDU_STATS_MAX);
+    netsnmp_ds_register_config(ASN_INTEGER, app, "pduStatsThreshold",
+                               NETSNMP_DS_APPLICATION_ID,
+                               NETSNMP_DS_AGENT_PDU_STATS_THRESHOLD);
+#endif /* NETSNMP_NO_PDU_STATS */
+
     netsnmp_init_handler_conf();
 
 #include "agent_module_dot_conf.h"
@@ -316,7 +353,7 @@ snmpd_register_const_config_handler(const char *token,
 }
 
 #ifdef NETSNMP_FEATURE_REQUIRE_SNMPD_UNREGISTER_CONFIG_HANDLER
-netsnmp_feature_require(unregister_app_config_handler)
+netsnmp_feature_require(unregister_app_config_handler);
 #endif /* NETSNMP_FEATURE_REQUIRE_SNMPD_UNREGISTER_CONFIG_HANDLER */
 
 #ifndef NETSNMP_FEATURE_REMOVE_SNMPD_UNREGISTER_CONFIG_HANDLER

@@ -14,6 +14,7 @@
 #include <net-snmp/library/dir_utils.h>
 #include <net-snmp/library/snmp_debug.h>
 #include <net-snmp/data_access/swinst.h>
+#include "swinst_private.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -27,8 +28,8 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <ApplicationServices/ApplicationServices.h>
 
-netsnmp_feature_require(container_directory)
-netsnmp_feature_require(date_n_time)
+netsnmp_feature_require(container_directory);
+netsnmp_feature_require(date_n_time);
 
 /* ---------------------------------------------------------------------
  */

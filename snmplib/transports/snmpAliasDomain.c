@@ -7,20 +7,16 @@
 #include <sys/types.h>
 #include <errno.h>
 
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-
-#if HAVE_DMALLOC_H
-#include <dmalloc.h>
 #endif
 
 #include <net-snmp/net-snmp-includes.h>
@@ -91,7 +87,7 @@ netsnmp_alias_create_tstring(const char *str, int local,
 
 
 netsnmp_transport *
-netsnmp_alias_create_ostring(const u_char * o, size_t o_len, int local)
+netsnmp_alias_create_ostring(const void *o, size_t o_len, int local)
 {
     fprintf(stderr, "make ostring\n");
     return NULL;
@@ -105,7 +101,6 @@ netsnmp_alias_ctor(void)
     aliasDomain.prefix = (const char **)calloc(2, sizeof(char *));
     aliasDomain.prefix[0] = "alias";
 
-    aliasDomain.f_create_from_tstring     = NULL;
     aliasDomain.f_create_from_tstring_new = netsnmp_alias_create_tstring;
     aliasDomain.f_create_from_ostring     = netsnmp_alias_create_ostring;
 

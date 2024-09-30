@@ -3,28 +3,29 @@
 # Makefile.in (at the root of net-snmp)
 #
 
-top_builddir	= .
 VPATH		= @srcdir@
 
 SUBDIRS		= snmplib @MAINSUBS@
+SUBDIRDEPS      = sedscript
 FTSUBDIRS	= @FTMAINSUBS@ snmplib
 TESTDIRS	= testing
 
 CPP		= @CPP@ 					        \
-		-Iinclude -I$(srcdir)/include -I$(srcdir)/agent/mibgroup -I. -I$(srcdir)	\
+		-I$(srcdir)/include -I.					\
 		-DDONT_INC_STRUCTS -DBINDIR=$(bindir) 		        \
 		$(EXTRACPPFLAGS)
 
 INSTALLHEADERS=version.h net-snmp-features.h
 INCLUDESUBDIR=system
 INCLUDESUBDIRHEADERS= aix.h bsd.h bsdi3.h bsdi4.h bsdi.h cygwin.h \
-	darwin.h darwin7.h darwin8.h darwin9.h darwin10.h dragonfly.h dynix.h \
+	darwin.h dragonfly.h dynix.h \
 	freebsd2.h freebsd3.h freebsd4.h freebsd5.h freebsd6.h \
 	freebsd7.h freebsd8.h freebsd9.h freebsd10.h freebsd11.h \
-	freebsd12.h freebsd.h \
-        generic.h \
-	hpux.h irix.h linux.h mingw32.h mips.h netbsd.h osf5.h \
-	openbsd.h openbsd5.h openbsd4.h \
+	freebsd12.h freebsd13.h freebsd14.h freebsd.h \
+	generic.h \
+	hpux.h irix.h kfreebsd.h linux.h mingw32.h mingw32msvc.h mips.h \
+	netbsd.h nto-qnx6.h osf5.h \
+	openbsd.h openbsd6.h openbsd5.h openbsd4.h \
 	solaris2.3.h solaris2.4.h solaris2.5.h solaris2.6.h \
 	solaris.h sunos.h svr5.h sysv.h ultrix4.h
 INCLUDESUBDIR2=machine
@@ -33,6 +34,7 @@ INSTALLBUILTHEADERS=include/net-snmp/net-snmp-config.h
 INSTALLBUILTINCLUDEHEADERS=@FEATUREHEADERS@
 INSTALLBINSCRIPTS=net-snmp-config net-snmp-create-v3-user
 INSTALLUCDHEADERS=ucd-snmp-config.h version.h mib_module_config.h
+INSTALL_PKGCONFIG=netsnmp.pc netsnmp-agent.pc
 
 #
 # other install rules.
@@ -111,8 +113,8 @@ agentxtrap snmptrapd: @FEATURETARGS@
 #
 # local build rules
 #
-sedscript: sedscript.in include/net-snmp/net-snmp-config.h $(srcdir)/agent/mibgroup/mibdefs.h
-	$(CPP) $(srcdir)/sedscript.in | egrep '^s[/#]' | sed 's/REMOVEME//g;s# */#/#g;s/ *#/#/g;s#/ *#/#g;s/# g/#g/;' > sedscript
+sedscript: $(srcdir)/sedscript.in include/net-snmp/net-snmp-config.h $(srcdir)/agent/mibgroup/mibdefs.h
+	$(CPP) -I$(srcdir) -Iinclude $(srcdir)/sedscript.in | $(EGREP) '^s[/#]' | sed 's/REMOVEME//g;s# */#/#g;s/ *#/#/g;s#/ *#/#g;s/# g/#g/;' > sedscript
 	echo 's/VERSIONINFO/$(VERSION)/g' >> sedscript
 	echo 's#DATADIR#$(datadir)#g' >> sedscript
 	echo 's#LIBDIR#$(libdir)#g' >> sedscript
@@ -120,14 +122,14 @@ sedscript: sedscript.in include/net-snmp/net-snmp-config.h $(srcdir)/agent/mibgr
 	echo 's#PERSISTENT_DIRECTORY#$(PERSISTENT_DIRECTORY)#g' >> sedscript
 	echo 's#SYSCONFDIR#@sysconfdir@#g' >> sedscript
 
-EXAMPLE.conf: sedscript EXAMPLE.conf.def
+EXAMPLE.conf: sedscript $(srcdir)/EXAMPLE.conf.def
 	$(SED) -f sedscript $(srcdir)/EXAMPLE.conf.def > EXAMPLE.conf
 
 docs: docsdir 
 
 docsdir: docsdox
 
-docsdox: doxygen.conf
+docsdox: $(srcdir)/doxygen.conf
 	srcdir=$(srcdir) VERSION=$(VERSION) doxygen $(srcdir)/doxygen.conf
 
 net-snmp-config-x: net-snmp-config
@@ -176,12 +178,17 @@ perlmodules: perlmakefiles subdirs
            exit 1 ; \
         fi
 
-perlmakefiles: net-snmp-config-x
-	@if test ! -f perl/Makefile; then \
-	  (dir=`pwd`; \
-	   cd perl ; \
-	   $(PERL) Makefile.PL -NET-SNMP-IN-SOURCE=true -NET-SNMP-CONFIG="sh $$dir/net-snmp-config" $(PERLARGS) ) ; \
-        fi
+perlmakefiles: perl/Makefile net-snmp-config-x
+
+perl/Makefile: perl/Makefile.PL subdirs
+	dir=`pwd` &&							\
+	cd perl &&							\
+	if false; then							\
+	    carp=-MCarp::Always;					\
+	fi &&								\
+	export PERL5LIB="$$dir/perl" &&					\
+	$(PERL) $$carp Makefile.PL -NET-SNMP-IN-SOURCE=true		\
+	    -NET-SNMP-CONFIG="sh $$dir/net-snmp-config" $(PERLARGS)
 
 perlinstall:
 	@(cd perl ; $(MAKE) install) ; \
@@ -190,10 +197,7 @@ perlinstall:
         fi
 
 perluninstall:
-	@(cd perl ; $(MAKE) uninstall) ; \
-        if test $$? != 0 ; then \
-           exit 1 ; \
-        fi
+	echo "WARNING: perl doesn't support uninstall"
 
 perltest:
 	@(cd perl ; $(MAKE) test) ; \
@@ -230,7 +234,7 @@ pythonmodules: subdirs
         fi
 
 pythoninstall:
-	@(dir=`pwd`; cd python; $(PYMAKE) install --basedir=$$dir) ; \
+	@(dir=`pwd`; cd python; $(PYMAKE) install --basedir=$$dir --root=$(DESTDIR) --prefix=$(prefix)) ; \
         if test $$? != 0 ; then \
            exit 1 ; \
         fi
@@ -271,6 +275,7 @@ configclean: makefileclean
 		libtool include/net-snmp/net-snmp-config.h \
 		net-snmp-config net-snmp-config-x configure-summary \
 		net-snmp-create-v3-user net-snmp-create-v3-user-x
+	rm -f *.pc
 	rm -f mibs/.index
 	rm -f include/net-snmp/agent/mib_module_config.h		\
 		include/net-snmp/agent/agent_module_config.h		\
@@ -310,6 +315,7 @@ Makefile: Makefile.in config.status Makefile.rules Makefile.top
 configure_ac = configure.ac \
 	configure.d/config_modules_agent \
 	configure.d/config_modules_lib \
+	configure.d/config_net_snmp_config_h \
 	configure.d/config_os_functions \
 	configure.d/config_os_headers \
 	configure.d/config_os_libs1 \
@@ -328,7 +334,7 @@ configure_ac = configure.ac \
 	configure.d/config_project_with_enable
 
 $(srcdir)/include/net-snmp/net-snmp-config.h.in: stamp-h.in
-$(srcdir)/stamp-h.in: $(configure_ac) acconfig.h
+$(srcdir)/stamp-h.in: $(configure_ac)
 	@if test "x$(NOAUTODEPS)" = "x" -a "x$(AUTOHEADER)" != "x:"; then \
 	    cd ${srcdir} && LC_COLLATE=C $(AUTOHEADER); \
 	    echo timestamp > ${srcdir}/stamp-h.in; \
@@ -430,7 +436,7 @@ warningcheck:
 
 assertcheck:
 	@echo "Checking for non-snmp asserts..."
-	@if grep -n -w "assert" `$(FIND) $(top_srcdir) -name \*.\[ch\] | grep -v snmp_assert.h | egrep -v 'perl/.*c' | grep -v openssl`; then false; fi
+	@if grep -n -w "assert" `$(FIND) $(top_srcdir) -name \*.\[ch\] | grep -v snmp_assert.h`; then false; fi
 
 commentcheck:
 	@echo "Checking for C++ style comments..."
@@ -448,6 +454,16 @@ perlcalloccheck:
 	@if grep -nwE 'calloc|SNMP_MALLOC_STRUCT|SNMP_MALLOC_TYPEDEF' `$(FIND) $(top_srcdir) -name '*.xs'`; then false; fi
 
 dist: tar
+
+rpm: dist
+	rpmtopdir=$$PWD/rpmbuilddir &&					\
+	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
+	  mkdir -p $${rpmtopdir}/$$d;					\
+	done &&								\
+	cp net-snmp-$(VERSION).tar.gz $${rpmtopdir}/SOURCES &&		\
+	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
+	    -ba dist/net-snmp.spec &&					\
+	find $${rpmtopdir} -name '*rpm'
 
 FAQ.html:
 	local/FAQ2HTML FAQ

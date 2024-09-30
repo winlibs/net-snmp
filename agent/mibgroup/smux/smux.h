@@ -4,10 +4,10 @@
  */
 
 #ifndef NETSNMP_TRANSPORT_IPV4BASE_DOMAIN
-config_error(smux/smux depends on the IPv4Base transport domain)
+config_error(smux/smux depends on the IPv4Base transport domain);
 #endif
 
-config_belongs_in(agent_module)
+config_belongs_in(agent_module);
 
 #define SMUXPORT 199
 
@@ -60,6 +60,7 @@ typedef struct _smux_reg {
     int             sr_priority;        /* priority of registration     */
     int             sr_fd;      /* descriptor of owner          */
     struct _smux_reg *sr_next;  /* next one                     */
+    netsnmp_handler_registration *reginfo;
 } smux_reg;
 
 extern void     init_smux(void);

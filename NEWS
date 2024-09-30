@@ -3,6 +3,172 @@ Please see the CHANGES file for a more detailed list of specific bugs/patches
 that have been fixed/applied, and the ChangeLog file for a comprehensive
 listing of all changes made to the code.
 
+*5.9.4*:
+
+    IMPORTANT: SNMP over TLS and/or DTLS are not functioning properly
+    in this release with various versions of OpenSSL and will be fixed
+    in a future release.
+
+    libsnmp:
+      - Remove the SNMP_SWIPE_MEM() macro Remove this macro since it is not
+	used in the Net-SNMP code base.
+      - DISPLAY-HINT fixes
+      - Miscellanious improvements to the transports
+      - Handle multiple oldEngineID configuration lines 
+      - fixes for DNS names longer than 63 characters
+
+    agent:
+      - Added a ignoremount configuration option for the HOST-MIB
+      - disallow SETs with a NULL varbind
+      - fix the --enable-minimalist build
+
+    apps:
+      - snmpset: allow SET with NULL varbind for testing
+      - snmptrapd: improved MySQL logging code
+
+    general:
+      - configure: Remove -Wno-deprecated as it is no longer needed
+      - miscellanious ther bug fixes, build fixes and cleanups
+
+*5.9.3*:
+    security:
+      - These two CVEs can be exploited by a user with read-only credentials:
+          - CVE-2022-24805 A buffer overflow in the handling of the INDEX of
+            NET-SNMP-VACM-MIB can cause an out-of-bounds memory access.
+          - CVE-2022-24809 A malformed OID in a GET-NEXT to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - These CVEs can be exploited by a user with read-write credentials:
+          - CVE-2022-24806 Improper Input Validation when SETing malformed
+            OIDs in master agent and subagent simultaneously
+          - CVE-2022-24807 A malformed OID in a SET request to
+            SNMP-VIEW-BASED-ACM-MIB::vacmAccessTable can cause an
+            out-of-bounds memory access.
+          - CVE-2022-24808 A malformed OID in a SET request to
+            NET-SNMP-AGENT-MIB::nsLogTable can cause a NULL pointer dereference
+          - CVE-2022-24810 A malformed OID in a SET to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - To avoid these flaws, use strong SNMPv3 credentials and do not share them.
+        If you must use SNMPv1 or SNMPv2c, use a complex community string
+        and enhance the protection by restricting access to a given IP address range.
+      - Thanks are due to Yu Zhang of VARAS@IIE and Nanyu Zhong of VARAS@IIE for
+        reporting the following CVEs that have been fixed in this release, and
+        to Arista Networks for providing fixes.
+
+    misc:
+      - Snmp-create-v3-user: Fix the snmpd.conf path   @datadir@ is
+    expanded in ${datarootdir} so datarootdir must be set before
+    @datadir@ is used.
+
+    general: Many bug fixes
+
+*5.9.2*:
+    security:
+      - These two CVEs can be exploited by a user with read-only credentials:
+          - CVE-2022-24805 A buffer overflow in the handling of the INDEX of
+            NET-SNMP-VACM-MIB can cause an out-of-bounds memory access.
+          - CVE-2022-24809 A malformed OID in a GET-NEXT to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - These CVEs can be exploited by a user with read-write credentials:
+          - CVE-2022-24806 Improper Input Validation when SETing malformed
+            OIDs in master agent and subagent simultaneously
+          - CVE-2022-24807 A malformed OID in a SET request to
+            SNMP-VIEW-BASED-ACM-MIB::vacmAccessTable can cause an
+            out-of-bounds memory access.
+          - CVE-2022-24808 A malformed OID in a SET request to
+            NET-SNMP-AGENT-MIB::nsLogTable can cause a NULL pointer dereference
+          - CVE-2022-24810 A malformed OID in a SET to the nsVacmAccessTable
+            can cause a NULL pointer dereference.
+      - To avoid these flaws, use strong SNMPv3 credentials and do not share them.
+        If you must use SNMPv1 or SNMPv2c, use a complex community string
+        and enhance the protection by restricting access to a given IP address range.
+      - Thanks are due to Yu Zhang of VARAS@IIE and Nanyu Zhong of VARAS@IIE for
+        reporting the following CVEs that have been fixed in this release, and
+        to Arista Networks for providing fixes.
+
+    misc:
+      - Snmp-create-v3-user: Fix the snmpd.conf path   @datadir@ is
+	expanded in ${datarootdir} so datarootdir must be set before
+	@datadir@ is used.
+
+    general: Many bug fixes
+
+*5.9.1*:
+    General: Many bug fixes
+
+*5.9*
+    snmplib:
+      - Add IPv6 support to DTLSUDP transport CHANGES: snmplib: use new
+	netsnmp_sockaddr_storage in netsnmp_addr_pair CHANGES: snmplib: add
+	base_transport ptr for tunneled transports
+
+    snmpd:
+      - Security vulnerabilty in the ping MIB reported by Christopher Ertl
+	from Microsoft fixed
+      - Changing to a different uid/gid can only be done once
+      - The extend mib is now read-only by default
+
+    snmptrap:
+      - BUG: 2899: Patch from Drew Roedersheimer to set library
+	engineboots/time values before sending
+
+    unspecified:
+      - Add pkg-config support for building applications and sub-agents Use
+	the netsnmp package when building Net-SNMP applications. Use the
+	netsnmp-agent package when building Net-SNMP subagents.
+
+*5.8*
+    snmplib:
+      - TLS/DTLS fixes
+      - fix usm keychanges for new algorithms and longer keylengths
+      - IP address formatting fixes
+      - BUG: 2592: from Stuart Kendrick - increase MAXTC to 16384
+      - add new sha2 auth protocols
+      - Restore AES-192 and AES-256 privacy protocols - from
+	draft-blumenthal-aes-usm-04 (precursor to RFC 3826)
+        - Use OIDs from http://www.snmp.com/eso/esoConsortiumMIB.txt
+        - Some code borrowed from PATCH 1346, thanks to
+          Alexander Ivanov and Vladimir Sukhorukov.
+      - BUG: 2622: Fix excessive indents in log file
+      - new config tokens:
+        - sendMessageMaxSize
+        - disableSNMPv1 / disableSNMPv2c
+      - new api for dynamic debug log level (netsnmp_set_debug_log_level)
+
+    snmpd:
+      - SNMP-TARGET-MIB: Fix snmpTargetAddrTAddress
+      - Com2sec and com2sec6 SOURCE values may deny sources as well as
+        permit.
+      - allow trap sinks to set Target-MIB characteristics (name, tag, profile)
+      - add source addr/port option to trapsink/trap2sink/informsink
+      - packet filtering by source ip (enableSourceFiltering/filtersource)
+      - several getbulk handling improvements
+      - several new APIs introduced for run-time configuration of agent:
+        - netsnmp_vacm_simple_usm_add/del
+        - usm_create_usmUser_*
+        - netsnmp_udp_com2SecEntry_create/netsnmp_udp_com2SecList_remove
+        - netsnmp_agent_listen_on to open agent port
+
+    Win32:
+      - Add support for the DTLS-UDP and TLS-TCP transports
+
+    scripts:
+      - A new 'checkbandwidth' script to check host min/max bandwidth
+
+    snmptranslate:
+      - Introduce bulk translation mode The special argument "-" causes
+	snmptranslate to enter bulk translation mode, in which it expects
+	one OID per line.  Whitespace is treated as the end of the OID, and
+	only that portion of the line is replaced, meaning that this can be
+	used to translate, e.g., "snmpwalk" output without the proper MIBs
+	loaded: snmptranslate -m all -OX < numeric.txt > symbolic.txt
+
+    building:
+      - Add Travis and Appveyor CI support
+      - IPv6 support is now compiled by default.  If you need an IPv4-only
+	agent, use --disable-ipv6.
+      - Fixed/improved support for several non-Linux platforms
+      - Many fixes found by Coverity anf Fortify scans
+
 *5.7.3*
     Many many bug fixes and minor improvements
 
@@ -1070,7 +1236,7 @@ UCD-SNMP NEWS:
  Ports:
     - HPUX 11
     - Dynix/PTX 4.4
-    - The snmpd demon can properly run as a windows service
+    - The snmpd daemon can properly run as a windows service
 
 *4.2.3*
  New:

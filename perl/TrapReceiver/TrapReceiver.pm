@@ -47,7 +47,7 @@ require NetSNMP::OID;
 	NETSNMPTRAPD_PRE_HANDLER
 );
 
-$VERSION = '5.0703';
+$VERSION = '5.0904';
 
 # sub new {
 #     my $type = shift;
@@ -116,7 +116,7 @@ been configured using --enable-embedded-perl.  Registration of
 functions is then done through the snmptrapd.conf configuration
 file.  This module can NOT be used in a normal perl script to
 receive traps.  It is intended solely for embedded use within the
-snmptrapd demon.
+snmptrapd daemon.
 
 =head1 DESCRIPTION
 
@@ -131,9 +131,12 @@ it came from, what SNMP user name or community name it was sent under,
 etc).  The second argument is a reference to an array containing the
 variable bindings (OID and value information) that define the
 noification itself.  Each variable is itself a reference to an array
-containing three values: a NetSNMP::OID object, the value that came
-associated with it, and the value's numeric type (see NetSNMP::ASN for
-further details on SNMP typing information).
+containing four values: a NetSNMP::OID object, a string representation
+of the value that came associated with it, the value's numeric type (see
+NetSNMP::ASN for further details on SNMP typing information), and the raw
+value of the trap, encoded according to its type, 64-bit integer types are
+returned as strings, integer types as integers, strings as strings, object
+identifiers as NetSNMP::OID objects, and any other types as undefs.
 
 Registered functions should return one of the following values:
 
@@ -141,18 +144,18 @@ Registered functions should return one of the following values:
 
 =item NETSNMPTRAPD_HANDLER_OK
 
-Handling the trap succeeded, but lets the snmptrapd demon check for
+Handling the trap succeeded, but lets the snmptrapd daemon check for
 further appropriate handlers.
 
 =item NETSNMPTRAPD_HANDLER_FAIL
 
-Handling the trap failed, but lets the snmptrapd demon check for
+Handling the trap failed, but lets the snmptrapd daemon check for
 further appropriate handlers.
 
 =item NETSNMPTRAPD_HANDLER_BREAK
 
 Stops evaluating the list of handlers for this specific trap, but lets
-the snmptrapd demon apply global handlers.
+the snmptrapd daemon apply global handlers.
 
 =item NETSNMPTRAPD_HANDLER_FINISH
 
@@ -248,19 +251,51 @@ code gets executed:
     ifOperStatus.1                 type=2  value=1
     ifDescr                        type=4  value="eth0"
 
+=head2 Passing Arguments
+
+If you need to pass arguments in to the script, you'll need to do it
+by one of two methods:
+
+=head3 Using Subroutines
+
+You can either define a subroutine in the file rather than have
+the file itself do something.  IE, in the file if you put:
+
+  sub foo {
+     print "$_[0]\n";
+  }
+
+and then put these lines in the snmptrapd.conf file:
+
+  perl do /path/to/script
+  perl foo("hello world");
+  perl foo("now I am passing something different");
+
+It'd call the foo function twice, and print the results to the console
+where snmptrapd was started.
+
+=head3 Using Variables
+
+Or you could always set a variable ahead of time:
+
+  perl $myVariable = 42;
+  perl do /path/to/script
+
+And have the script look for and use the $myVariable value in the script
+
 =head1 EXPORT
 
 None by default.
 
-# =head2 Exportable constants
+=head2 Exportable constants
 
-#   NETSNMPTRAPD_AUTH_HANDLER
-#   NETSNMPTRAPD_HANDLER_BREAK
-#   NETSNMPTRAPD_HANDLER_FAIL
-#   NETSNMPTRAPD_HANDLER_FINISH
-#   NETSNMPTRAPD_HANDLER_OK
-#   NETSNMPTRAPD_POST_HANDLER
-#   NETSNMPTRAPD_PRE_HANDLER
+  NETSNMPTRAPD_AUTH_HANDLER
+  NETSNMPTRAPD_HANDLER_BREAK
+  NETSNMPTRAPD_HANDLER_FAIL
+  NETSNMPTRAPD_HANDLER_FINISH
+  NETSNMPTRAPD_HANDLER_OK
+  NETSNMPTRAPD_POST_HANDLER
+  NETSNMPTRAPD_PRE_HANDLER
 
 =head1 SEE ALSO
 

@@ -1,3 +1,4 @@
+#!/bin/sh
 #
 # eval_tools.sh
 #
@@ -214,7 +215,7 @@ KNORG
 
 	fi
 	echo "RUNNING: $*" > $junkoutputfile
-	( $* 2>&1 ) >> $junkoutputfile 2>&1
+	( $DYNAMIC_ANALYZER $* 2>&1 ) >> $junkoutputfile 2>&1
 	RC=$?
 
 	if [ $SNMP_VERBOSE -gt 1 ]; then
@@ -524,6 +525,7 @@ STARTPROG() {
     if test -f $CFG_FILE; then
 	COMMAND="$COMMAND -C -c $CFG_FILE"
     fi
+    COMMAND="$COMMAND -f"
     if [ "x$PORT_SPEC" != "x" ]; then
         COMMAND="$COMMAND $PORT_SPEC"
     fi
@@ -535,13 +537,10 @@ STARTPROG() {
         OUTPUTENVVARS $LOG_FILE.command
         echo $COMMAND >> $LOG_FILE.command
     fi
-    if [ "x$OSTYPE" = "xmsys" ]; then
-      $COMMAND > $LOG_FILE.stdout 2>&1 &
-      ## COMMAND="cmd.exe //c start //min $COMMAND"
-      ## start $COMMAND > $LOG_FILE.stdout 2>&1
-    else
-      $COMMAND > $LOG_FILE.stdout 2>&1
-    fi
+    {
+	{ $COMMAND; } >$LOG_FILE.stdout 2>&1
+	echo $? >$LOG_FILE.exitcode
+    } &
 }
 
 #------------------------------------ -o-
@@ -685,6 +684,23 @@ FINISHED() {
 	    rm -f core
 	fi
 	echo "$headerStr...FAIL" >> $SNMP_TMPDIR/invoked
+	if [ -n "$APPVEYOR" ] || [ -n "$CIRRUS_CI" ]; then
+	    {
+		find "$SNMP_TMPDIR" -type f |
+		    while read -r f; do
+			local lines
+			echo "==== $f"
+			lines=$(wc -l "$f" | { read -r a b; echo "$a"; })
+			if [ "$lines" -gt 512 ]; then
+			    head -n 256 "$f"
+			    echo "..."
+			    tail -n 256 "$f"
+			else
+			    cat "$f"
+			fi
+		    done;
+	    } 1>&2
+	fi
 	exit 1
     fi
 

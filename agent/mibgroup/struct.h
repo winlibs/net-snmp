@@ -10,7 +10,7 @@
 
 struct extensible {
     char            name[STRMAX];
-    char            command[STRMAX];
+    char           *command;
     char            fixcmd[STRMAX];
     int             type;
     int             result;
@@ -23,10 +23,16 @@ struct extensible {
 #if defined(WIN32)
     HANDLE          tid;                /* WIN32 thread */
 #endif
+#ifdef USING_SINGLE_COMMON_PASSPERSIST_INSTANCE
+    struct extensible *passpersist_inst;
+#endif /* USING_SINGLE_COMMON_PASSPERSIST_INSTANCE */
 };
 
 struct myproc {
     char            name[STRMAX];
+#ifdef HAVE_PCRE_H
+    netsnmp_regex_ptr regexp;
+#endif
     char            fixcmd[STRMAX];
     int             min;
     int             max;

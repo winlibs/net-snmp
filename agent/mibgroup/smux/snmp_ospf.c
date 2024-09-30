@@ -9,25 +9,25 @@
 #include <net-snmp/net-snmp-config.h>
 
 #include <stdio.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_ERR_H
+#ifdef HAVE_ERR_H
 #include <err.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
@@ -38,11 +38,11 @@
 
 #include <sys/stat.h>
 #include <sys/socket.h>
-#if HAVE_SYS_FILIO_H
+#ifdef HAVE_SYS_FILIO_H
 #include <sys/filio.h>
 #endif
 
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 
@@ -54,7 +54,6 @@
 static oid      max_ospf_mib[] = { 1, 3, 6, 1, 2, 1, 14, 14, 1, 6, 0 };
 static oid      min_ospf_mib[] =
     { 1, 3, 6, 1, 2, 1, 14, 1, 1, 0, 0, 0, 0 };
-extern u_char   smux_type;
 
 struct variable13 ospf_variables[] = {
     {ospfRouterId, ASN_IPADDRESS, NETSNMP_OLDAPI_RWRITE,

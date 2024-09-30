@@ -7,12 +7,13 @@
 #include <net-snmp/net-snmp-features.h>
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
+#include "agent_global_vars.h"
 #include "disman/event/mteTrigger.h"
 #include "disman/event/mteEvent.h"
 
-netsnmp_feature_child_of(disman_debugging, libnetsnmpmibs)
-netsnmp_feature_child_of(mtetrigger, libnetsnmpmibs)
-netsnmp_feature_child_of(mtetrigger_removeentry, mtetrigger)
+netsnmp_feature_child_of(disman_debugging, libnetsnmpmibs);
+netsnmp_feature_child_of(mtetrigger, libnetsnmpmibs);
+netsnmp_feature_child_of(mtetrigger_removeentry, mtetrigger);
 
 netsnmp_tdata *trigger_table_data;
 
@@ -219,7 +220,6 @@ mteTrigger_run( unsigned int reg, void *clientarg)
     }
 
     {
-	extern netsnmp_agent_session *netsnmp_processing_set;
 	if (netsnmp_processing_set) {
 	    /*
 	     * netsnmp_handle_request will not be responsive to our efforts to
@@ -429,7 +429,7 @@ mteTrigger_run( unsigned int reg, void *clientarg)
                     DEBUGMSGOID(("disman:event:trigger:fire",
                                  vp1->name, vp1->name_length));
                     DEBUGMSG((   "disman:event:trigger:fire",
-                                 " (present)\n"));;
+                                 " (present)\n"));
                     entry->mteTriggerXOwner   = entry->mteTExObjOwner;
                     entry->mteTriggerXObjects = entry->mteTExObjects;
                     entry->mteTriggerFired    = vp1;
@@ -451,7 +451,7 @@ mteTrigger_run( unsigned int reg, void *clientarg)
                     DEBUGMSGOID(("disman:event:trigger:fire",
                                  var->name, var->name_length));
                     DEBUGMSG((   "disman:event:trigger:fire",
-                                 " (absent)\n"));;
+                                 " (absent)\n"));
                     entry->mteTriggerXOwner   = entry->mteTExObjOwner;
                     entry->mteTriggerXObjects = entry->mteTExObjects;
                     /*
@@ -530,7 +530,7 @@ mteTrigger_run( unsigned int reg, void *clientarg)
                     DEBUGMSGOID(("disman:event:trigger:fire",
                                  vp1->name, vp1->name_length));
                     DEBUGMSG((   "disman:event:trigger:fire",
-                                 " %s\n", reason));;
+                                 " %s\n", reason));
                     entry->mteTriggerXOwner   = entry->mteTExObjOwner;
                     entry->mteTriggerXObjects = entry->mteTExObjects;
                     n = entry->mteTriggerValueID_len;
@@ -585,7 +585,7 @@ mteTrigger_run( unsigned int reg, void *clientarg)
             DEBUGMSGOID(("disman:event:trigger:fire",
                          var->name, var->name_length));
             DEBUGMSG((   "disman:event:trigger:fire",
-                         " (boolean/threshold) %d\n", var->type));;
+                         " (boolean/threshold) %d\n", var->type));
             snmp_free_varbind( entry->old_results );
             entry->old_results = var;
             return;

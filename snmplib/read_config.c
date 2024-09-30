@@ -69,26 +69,26 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <sys/types.h>
-#if HAVE_SYS_PARAM_H
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
@@ -97,42 +97,41 @@
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
-#if HAVE_SYS_SELECT_H
+#ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
 #include <errno.h>
+#ifdef HAVE_IO_H
+#include <io.h>
+#endif
 
-#if HAVE_DIRENT_H
+#ifdef HAVE_DIRENT_H
 # include <dirent.h>
 # define NAMLEN(dirent) strlen((dirent)->d_name)
 #else
 # define dirent direct
 # define NAMLEN(dirent) (dirent)->d_namlen
-# if HAVE_SYS_NDIR_H
+# ifdef HAVE_SYS_NDIR_H
 #  include <sys/ndir.h>
 # endif
-# if HAVE_SYS_DIR_H
+# ifdef HAVE_SYS_DIR_H
 #  include <sys/dir.h>
 # endif
-# if HAVE_NDIR_H
+# ifdef HAVE_NDIR_H
 #  include <ndir.h>
 # endif
-#endif
-
-#if HAVE_DMALLOC_H
-#include <dmalloc.h>
 #endif
 
 #include <net-snmp/types.h>
@@ -146,11 +145,10 @@
 #include <net-snmp/library/snmp_api.h>
 #include <net-snmp/library/callback.h>
 
-netsnmp_feature_child_of(read_config_all, libnetsnmp)
+netsnmp_feature_child_of(read_config_all, libnetsnmp);
 
-netsnmp_feature_child_of(unregister_app_config_handler, read_config_all)
-netsnmp_feature_child_of(read_config_register_app_prenetsnmp_mib_handler, netsnmp_unused)
-netsnmp_feature_child_of(read_config_register_const_config_handler, netsnmp_unused)
+netsnmp_feature_child_of(unregister_app_config_handler, read_config_all);
+netsnmp_feature_child_of(read_config_register_app_prenetsnmp_mib_handler, netsnmp_unused);
 
 static int      config_errors;
 
@@ -314,7 +312,6 @@ register_config_handler(const char *type,
 					    help, NORMAL_CONFIG);
 }
 
-#ifndef NETSNMP_FEATURE_REMOVE_READ_CONFIG_REGISTER_CONST_CONFIG_HANDLER
 struct config_line *
 register_const_config_handler(const char *type,
                               const char *token,
@@ -326,7 +323,6 @@ register_const_config_handler(const char *type,
                                             parser, releaser,
 					    help, NORMAL_CONFIG);
 }
-#endif /* NETSNMP_FEATURE_REMOVE_READ_CONFIG_REGISTER_CONST_CONFIG_HANDLER */
 
 struct config_line *
 register_app_config_handler(const char *token,
@@ -516,6 +512,8 @@ read_config_find_handler(struct config_line *line_handlers,
 {
     struct config_line *lptr;
 
+    netsnmp_assert(token);
+
     for (lptr = line_handlers; lptr != NULL; lptr = lptr->next) {
         if (!strcasecmp(token, lptr->config_token)) {
             return lptr;
@@ -533,6 +531,9 @@ run_config_handler(struct config_line *lptr,
                    const char *token, char *cptr, int when)
 {
     char           *cp;
+
+    netsnmp_assert(token);
+
     lptr = read_config_find_handler(lptr, token);
     if (lptr != NULL) {
         if (when == EITHER_CONFIG || lptr->config_time == when) {
@@ -613,6 +614,7 @@ snmp_config_when(char *line, int when)
             return SNMPERR_GENERR;
         }
         cptr = strtok_r(NULL, SNMP_CONFIG_DELIMETERS, &st);
+        netsnmp_assert(cptr);
         lptr = read_config_find_handler(lptr, cptr);
     } else {
         /*
@@ -763,6 +765,9 @@ read_config(const char *filename,
     char           *line = NULL;  /* current line buffer */
     size_t          linesize = 0; /* allocated size of line */
 
+    netsnmp_assert(line_handler);
+    netsnmp_assert(line_handler->config_token);
+
     /* reset file counter when recursion depth is 0 */
     if (depth == 0)
         files = 0;
@@ -837,7 +842,7 @@ read_config(const char *filename,
 
             linelen += strlen(line + linelen);
 
-            if (line[linelen - 1] == '\n') {
+            if (linelen && line[linelen - 1] == '\n') {
               line[linelen - 1] = '\0';
               break;
             }
@@ -1020,6 +1025,8 @@ read_configs_optional(const char *optional_config, int when)
                 "reading optional configuration tokens for %s\n", type));
     
     newp = strdup(optional_config);      /* strtok_r messes it up */
+    if (!newp)
+        return ret;
     cp = strtok_r(newp, ",", &st);
     while (cp) {
         struct stat     statbuf;
@@ -1538,9 +1545,35 @@ read_config_store(const char *type, const char *line)
         if (line[strlen(line)] != '\n')
             fprintf(fout, "\n");
         DEBUGMSGTL(("read_config:store", "storing: %s\n", line));
+        fflush(fout);
+#if defined(HAVE_FSYNC)
+        fsync(fileno(fout));
+#elif defined(HAVE__GET_OSFHANDLE)
+        {
+            int fd;
+            HANDLE h;
+
+            fd = fileno(fout);
+            netsnmp_assert(fd != -1);
+            /*
+             * Use size_t instead of uintptr_t because not all supported
+             * Windows compilers support uintptr_t.
+             */
+            h = (HANDLE)(size_t)_get_osfhandle(fd);
+            netsnmp_assert(h != INVALID_HANDLE_VALUE);
+            FlushFileBuffers(h);
+        }
+#endif
         fclose(fout);
     } else {
-        snmp_log(LOG_ERR, "read_config_store open failure on %s\n", filep);
+        if (strcmp(NETSNMP_APPLICATION_CONFIG_TYPE, type) != 0) {
+            /*
+             * Ignore this error in client utilities, they can run with random
+             * UID/GID and typically cannot write to /var. Error message just
+             * confuses people.
+             */
+            snmp_log(LOG_ERR, "read_config_store open failure on %s\n", filep);
+        }
     }
 #ifdef NETSNMP_PERSISTENT_MASK
     umask(oldmask);
@@ -1984,7 +2017,7 @@ read_config_read_octet_string_const(const char *readfrom, u_char ** str,
         if (ilen % 2) {
             snmp_log(LOG_WARNING,"invalid hex string: wrong length\n");
             DEBUGMSGTL(("read_config_read_octet_string",
-                        "invalid hex string: wrong length"));
+                        "invalid hex string: wrong length\n"));
             return NULL;
         }
         ilen = ilen / 2;
@@ -2004,7 +2037,7 @@ read_config_read_octet_string_const(const char *readfrom, u_char ** str,
                 snmp_log(LOG_WARNING,"buffer too small to read octet string (%lu < %lu)\n",
                          (unsigned long)*len, (unsigned long)ilen);
                 DEBUGMSGTL(("read_config_read_octet_string",
-                            "buffer too small (%lu < %lu)", (unsigned long)*len, (unsigned long)ilen));
+                            "buffer too small (%lu < %lu)\n", (unsigned long)*len, (unsigned long)ilen));
                 *len = 0;
                 cptr1 = skip_not_white_const(readfrom);
                 return skip_white_const(cptr1);
@@ -2120,7 +2153,7 @@ read_config_read_objid_const(const char *readfrom, oid ** objid, size_t * len)
         copy_nword_const(readfrom, buf, sizeof(buf));
 
         if (!read_objid(buf, *objid, len)) {
-            DEBUGMSGTL(("read_config_read_objid", "Invalid OID"));
+            DEBUGMSGTL(("read_config_read_objid", "Invalid OID\n"));
             *len = 0;
             return NULL;
         }
@@ -2199,7 +2232,7 @@ read_config_read_data(int type, char *readfrom, void *dataptr,
             return read_config_read_objid(readfrom, oidpp, len);
 
         default:
-            DEBUGMSGTL(("read_config_read_data", "Fail: Unknown type: %d",
+            DEBUGMSGTL(("read_config_read_data", "Fail: Unknown type: %d\n",
                         type));
             return NULL;
         }
@@ -2270,15 +2303,15 @@ read_config_read_memory(int type, char *readfrom,
         return readfrom;
 
     case ASN_COUNTER64:
-        if (*len < sizeof(U64))
+        if (*len < sizeof(struct counter64))
             return NULL;
-        *len = sizeof(U64);
-        read64((U64 *) dataptr, readfrom);
+        *len = sizeof(struct counter64);
+        read64((struct counter64 *) dataptr, readfrom);
         readfrom = skip_token(readfrom);
         return readfrom;
     }
 
-    DEBUGMSGTL(("read_config_read_memory", "Fail: Unknown type: %d", type));
+    DEBUGMSGTL(("read_config_read_memory", "Fail: Unknown type: %d\n", type));
     return NULL;
 }
 
@@ -2357,7 +2390,7 @@ read_config_store_data_prefix(char prefix, int type, char *storeto,
 
         default:
             DEBUGMSGTL(("read_config_store_data_prefix",
-                        "Fail: Unknown type: %d", type));
+                        "Fail: Unknown type: %d\n", type));
             return NULL;
         }
     return NULL;

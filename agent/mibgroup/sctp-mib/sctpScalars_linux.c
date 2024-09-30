@@ -44,7 +44,7 @@ load_uint_file(const char *filename, u_int * value)
 }
 
 void
-netsnmp_access_sctp_stats_arch_init()
+netsnmp_access_sctp_stats_arch_init(void)
 {
 }
 
@@ -143,8 +143,6 @@ netsnmp_access_sctp_stats_arch_load(netsnmp_sctp_stats * sctp_stats)
         if (ret < 0) {
             DEBUGMSGTL(("sctp:scalars:stats:arch_load",
                         "Unknown entry: %s\n", line));
-            /* fclose(f); */
-            /* return ret; */
 	    ret = 0;
         }
     }
@@ -155,7 +153,7 @@ netsnmp_access_sctp_stats_arch_load(netsnmp_sctp_stats * sctp_stats)
 }
 
 void
-netsnmp_access_sctp_params_arch_init()
+netsnmp_access_sctp_params_arch_init(void)
 {
 }
 

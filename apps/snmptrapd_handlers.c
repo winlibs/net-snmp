@@ -1,27 +1,30 @@
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <stdio.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 #include <ctype.h>
 #include <sys/types.h>
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#if HAVE_SYS_WAIT_H
+#ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
 
@@ -38,7 +41,7 @@
 #include "snmptrapd_log.h"
 #include "notification-log-mib/notification_log.h"
 
-netsnmp_feature_child_of(add_default_traphandler, snmptrapd)
+netsnmp_feature_child_of(add_default_traphandler, snmptrapd);
 
 char *syslog_format1 = NULL;
 char *syslog_format2 = NULL;
@@ -102,6 +105,7 @@ snmptrapd_parse_traphandle(const char *token, char *line)
     }
     if ( !cptr ) {
         netsnmp_config_error("Missing traphandle command (%s)", buf);
+        free(format);
         return;
     }
 
@@ -126,6 +130,7 @@ snmptrapd_parse_traphandle(const char *token, char *line)
         if (!read_objid(buf, obuf, &olen)) {
 	    netsnmp_config_error("Bad trap OID in traphandle directive: %s",
 				 buf);
+            free(format);
             return;
         }
         DEBUGMSGOID(("read_config:traphandle", obuf, olen));
@@ -138,9 +143,12 @@ snmptrapd_parse_traphandle(const char *token, char *line)
         traph->flags = flags;
         traph->authtypes = TRAP_AUTH_EXE;
         traph->token = strdup(cptr);
-        if (format)
+        if (format) {
             traph->format = format;
+            format = NULL;
+        }
     }
+    free(format);
 }
 
 
@@ -189,6 +197,7 @@ parse_forward(const char *token, char *line)
 
         if (!read_objid(buf, obuf, &olen)) {
 	    netsnmp_config_error("Bad trap OID in forward directive: %s", buf);
+            free(format);
             return;
         }
         DEBUGMSGOID(("read_config:forward", obuf, olen));
@@ -206,6 +215,8 @@ parse_forward(const char *token, char *line)
         traph->token = strdup(cptr);
         if (format)
             traph->format = format;
+    } else {
+        free(format);
     }
 }
 
@@ -291,7 +302,7 @@ void
 free_trap1_fmt(void)
 {
     if (print_format1 && print_format1 != trap1_std_str)
-        free((char *) print_format1);
+        free(print_format1);
     print_format1 = NULL;
 }
 
@@ -307,7 +318,7 @@ void
 free_trap2_fmt(void)
 {
     if (print_format2 && print_format2 != trap2_std_str)
-        free((char *) print_format2);
+        free(print_format2);
     print_format2 = NULL;
 }
 
@@ -873,6 +884,121 @@ int axforward_handler( netsnmp_pdu           *pdu,
     return NETSNMPTRAPD_HANDLER_OK;
 }
 
+static int add_forwarder_info(netsnmp_pdu *pdu, netsnmp_pdu *pdu2)
+{
+    netsnmp_indexed_addr_pair *addr_pair1;
+    struct sockaddr_in *to1 = NULL;
+    struct sockaddr_in *to2 = NULL;
+    int            last_snmpTrapAddress_index = -1;
+    /* snmpTrapAddress_oid.0 is also defined as agentaddr_oid */
+    const oid      snmpTrapAddress_oid[]   = { 1,3,6,1,6,3,18,1,3};
+    /* each forwarder will add this OID with changed last index */
+    oid            forwarder_oid[]   =       { 1,3,6,1,6,3,18,1,3,0};
+    const size_t   snmpTrapAddress_oid_size = OID_LENGTH(snmpTrapAddress_oid);
+    const size_t   forwarder_oid_len = OID_LENGTH(forwarder_oid);
+    struct in_addr agent_addr;
+    struct in_addr my_ip_addr;
+
+    memset(&agent_addr, 0, sizeof(agent_addr));
+    memset(&my_ip_addr, 0, sizeof(my_ip_addr));
+
+    if (pdu && pdu->transport_data &&
+        pdu->transport_data_length == sizeof(*addr_pair1)) {
+        addr_pair1 = (netsnmp_indexed_addr_pair *)pdu->transport_data;
+
+        /*
+         * Get the IPv4 address of the host that this trap was sent from =
+         * last forwarder's IP address.
+         */
+        if (addr_pair1->remote_addr.sa.sa_family == AF_INET) {
+            to1 = (struct sockaddr_in *)&(addr_pair1->remote_addr);
+            agent_addr = to1->sin_addr;
+        }
+        /*
+         * Get the IPv4 address of the host that this trap was sent to =
+         * this forwarder's IP address.
+         */
+        if (addr_pair1->local_addr.sa.sa_family == AF_INET) {
+            to2 = (struct sockaddr_in *)&(addr_pair1->local_addr);
+            my_ip_addr = to2->sin_addr;
+        }
+    }
+
+    if (to1) {
+        netsnmp_variable_list *vblist = NULL;
+        netsnmp_variable_list *var = NULL;
+
+        if (*(in_addr_t *)pdu2->agent_addr == INADDR_ANY) {
+            /*
+             * there was no agent address defined in PDU. copy the forwarding
+             * agent IP address from the transport socket.
+             */
+            *(struct in_addr *)pdu2->agent_addr = agent_addr;
+        }
+
+        vblist = pdu2->variables;
+
+        /*
+         * Iterate over all varbinds in the PDU to see if it already has any
+         * forwarder information.
+         */
+        for (var = vblist; var; var = var->next_variable) {
+            if (snmp_oid_ncompare(var->name, var->name_length,
+                                  snmpTrapAddress_oid,
+                                  snmpTrapAddress_oid_size,
+                                  snmpTrapAddress_oid_size) == 0) {
+                int my_snmpTrapAddress_index =
+                    var->name[var->name_length - 1];
+
+                DEBUGMSGTL(("snmptrapd", "  my_snmpTrapAddress_index=%d, last_snmpTrapAddress_index=%d, my_ip_addr=%s\n",
+                            my_snmpTrapAddress_index,
+                            last_snmpTrapAddress_index,
+                            inet_ntoa(my_ip_addr)));
+
+                if (last_snmpTrapAddress_index < my_snmpTrapAddress_index)
+                    last_snmpTrapAddress_index = my_snmpTrapAddress_index;
+
+                /* Detect forwarding loop. */
+                if (var->val_len < 4) {
+                    snmp_log(LOG_ERR, "Length of IP address of OID .1.3.6.1.6.3.18.1.3.%d in PDU is less than %d bytes = %d\n",
+                             my_snmpTrapAddress_index, 4,
+                             (int)var->val_len);
+                } else {
+                    if (to2 &&
+                        memcmp(var->val.string, &my_ip_addr, 4) == 0) {
+                        snmp_log(LOG_ERR, "Forwarding loop detected, OID .1.3.6.1.6.3.18.1.3.%d already has this forwarder's IP address=%s, not forwarding this trap\n",
+                                 my_snmpTrapAddress_index,
+                                 inet_ntoa(my_ip_addr));
+                        return 0;
+                    }
+                    if (memcmp(var->val.string, &agent_addr, 4) == 0) {
+                        snmp_log(LOG_ERR, "Forwarding loop detected, OID .1.3.6.1.6.3.18.1.3.%d already has the sender's IP address=%s, not forwarding this trap\n",
+                                 my_snmpTrapAddress_index,
+                                 inet_ntoa(agent_addr));
+                        return 0;
+                    }
+                }
+            }
+        } /* for var in vblist */
+
+        DEBUGMSGTL(("snmptrapd",
+                    "  last_snmpTrapAddress_index=%d, adding index=%d\n",
+                    last_snmpTrapAddress_index, last_snmpTrapAddress_index+1));
+        /* Change the last index of this OID to the next avaiable number. */
+        forwarder_oid[forwarder_oid_len - 1] = last_snmpTrapAddress_index + 1;
+
+        /*
+         * Add forwarder IP address as OID to trap payload. Use the value
+         * from the transport, so if a v1 PDU is sent, the same IP is not
+         * duplicated you want every forwarder to add this OID with its
+         * own IP address.
+         */
+        snmp_pdu_add_variable(pdu2, forwarder_oid, forwarder_oid_len,
+                              ASN_IPADDRESS, (u_char *)&agent_addr, 4);
+    }
+    return 1;
+}
+
 /*
  *  Trap handler for forwarding to another destination
  */
@@ -904,14 +1030,25 @@ int   forward_handler( netsnmp_pdu           *pdu,
        INFORMS which may require engineID probing */
 
     pdu2 = snmp_clone_pdu(pdu);
+
+    if (netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                               NETSNMP_DS_LIB_ADD_FORWARDER_INFO) &&
+        !add_forwarder_info(pdu, pdu2)) {
+        snmp_close(ss);
+        return NETSNMPTRAPD_HANDLER_FAIL;
+    }
+
     if (pdu2->transport_data) {
         free(pdu2->transport_data);
         pdu2->transport_data        = NULL;
         pdu2->transport_data_length = 0;
     }
-    if (!snmp_send( ss, pdu2 )) {
-	snmp_sess_perror("Forward failed", ss);
-	snmp_free_pdu(pdu2);
+
+    ss->s_snmp_errno = SNMPERR_SUCCESS;
+    if (!snmp_send( ss, pdu2 ) &&
+            ss->s_snmp_errno != SNMPERR_SUCCESS) {
+        snmp_sess_perror("Forward failed", ss);
+        snmp_free_pdu(pdu2);
     }
     snmp_close( ss );
     return NETSNMPTRAPD_HANDLER_OK;

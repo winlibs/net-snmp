@@ -1,4 +1,13 @@
 /* UDP base transport support functions
+ *
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 #include <net-snmp/net-snmp-config.h>
@@ -10,24 +19,27 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <ctype.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#if HAVE_SYS_UIO_H
+#ifdef HAVE_SYS_UIO_H
 #include <sys/uio.h>
 #endif
 #ifdef WIN32
@@ -46,10 +58,6 @@
 
 #ifndef  MSG_DONTWAIT
 #define MSG_DONTWAIT 0
-#endif
-
-#ifndef  MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
 #endif
 
 void
@@ -100,10 +108,7 @@ _netsnmp_udp_sockopt_set(int fd, int local)
     netsnmp_sock_buffer_set(fd, SO_RCVBUF, local, 0);
 }
 
-#if defined(HAVE_IP_PKTINFO) || defined(HAVE_IP_RECVDSTADDR)
-# if defined(IP_RECVDSTADDR) && !defined(IP_SENDSRCADDR)
-#  define IP_SENDSRCADDR IP_RECVDSTADDR /* DragonFly BSD */
-# endif
+#if defined(HAVE_IP_PKTINFO) || (defined(HAVE_IP_RECVDSTADDR) && defined(HAVE_IP_SENDSRCADDR))
 
 #define netsnmp_udpbase_recvfrom_sendto_defined
 
@@ -229,19 +234,22 @@ netsnmp_udpbase_recvfrom(int s, void *buf, int len, struct sockaddr *from,
     return r;
 }
 
-int netsnmp_udpbase_sendto(int fd, struct in_addr *srcip, int if_index,
-                           struct sockaddr *remote, void *data, int len)
-{
 #if !defined(WIN32)
+int netsnmp_udpbase_sendto_unix(int fd, const struct in_addr *srcip,
+                                int if_index, const struct sockaddr *remote,
+                                const void *data, int len)
+{
     struct iovec iov;
-    struct msghdr m = { 0 };
+    struct msghdr m = { NULL };
     char          cmsg[CMSG_SPACE(cmsg_data_size)];
     int           rc;
+    char          iface[IFNAMSIZ];
+    socklen_t     ifacelen = IFNAMSIZ;
 
-    iov.iov_base = data;
+    iov.iov_base = NETSNMP_REMOVE_CONST(void *, data);
     iov.iov_len  = len;
 
-    m.msg_name		= remote;
+    m.msg_name		= NETSNMP_REMOVE_CONST(void *, remote);
     m.msg_namelen	= sizeof(struct sockaddr_in);
     m.msg_iov		= &iov;
     m.msg_iovlen	= 1;
@@ -249,8 +257,8 @@ int netsnmp_udpbase_sendto(int fd, struct in_addr *srcip, int if_index,
 
     if (srcip && srcip->s_addr != INADDR_ANY) {
         struct cmsghdr *cm;
-
-        DEBUGMSGTL(("udpbase:sendto", "sending from %s\n", inet_ntoa(*srcip)));
+        struct in_pktinfo ipi;
+        int use_sendto = FALSE;
 
         memset(cmsg, 0, sizeof(cmsg));
 
@@ -264,29 +272,50 @@ int netsnmp_udpbase_sendto(int fd, struct in_addr *srcip, int if_index,
         cm->cmsg_level = SOL_IP;
         cm->cmsg_type = IP_PKTINFO;
 
-        {
-            struct in_pktinfo ipi;
-
-            memset(&ipi, 0, sizeof(ipi));
-            /*
-             * Except in the case of responding
-             * to a broadcast, setting the ifindex
-             * when responding results in incorrect
-             * behavior of changing the source address
-             * that the manager sees the response
-             * come from.
-             */
-            ipi.ipi_ifindex = 0;
-#if defined(cygwin)
-            ipi.ipi_addr.s_addr = srcip->s_addr;
-#else
-            ipi.ipi_spec_dst.s_addr = srcip->s_addr;
-#endif
-            memcpy(CMSG_DATA(cm), &ipi, sizeof(ipi));
+        memset(&ipi, 0, sizeof(ipi));
+#ifdef HAVE_SO_BINDTODEVICE
+        /*
+         * For asymmetric multihomed users, we only set ifindex to 0 to
+         * let kernel handle return if there was no iface bound to the
+         * socket.
+         */
+        if (getsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, iface,
+                       &ifacelen) != 0)  {
+            DEBUGMSGTL(("udpbase:sendto",
+                        "getsockopt SO_BINDTODEVICE failed: %s\n",
+                        strerror(errno)));
+        } else if (ifacelen == 0) {
+            DEBUGMSGTL(("udpbase:sendto",
+                        "sendto: SO_BINDTODEVICE not set\n"));
+        } else {
+            DEBUGMSGTL(("udpbase:sendto",
+                        "sendto: SO_BINDTODEVICE dev=%s using ifindex=%d\n",
+                        iface, if_index));
+            use_sendto = TRUE;
         }
+#endif /* HAVE_SO_BINDTODEVICE */
 
-        rc = sendmsg(fd, &m, MSG_NOSIGNAL|MSG_DONTWAIT);
-        if (rc >= 0 || errno != EINVAL)
+#ifdef HAVE_STRUCT_IN_PKTINFO_IPI_SPEC_DST
+        DEBUGMSGTL(("udpbase:sendto", "sending from %s\n",
+                    inet_ntoa(*srcip)));
+        ipi.ipi_spec_dst.s_addr = srcip->s_addr;
+#else
+        DEBUGMSGTL(("udpbase:sendto", "ignoring from address %s\n",
+                    inet_ntoa(*srcip)));
+#endif
+        memcpy(CMSG_DATA(cm), &ipi, sizeof(ipi));
+
+        /*
+         * For Linux and VRF, use sendto() instead of sendmsg(). Do not pass a
+         * cmsg with IP_PKTINFO set because that would override the bind to
+         * VRF which is set by 'vrf exec' command. That would break VRF.
+         */
+        if (use_sendto)
+            rc = sendto(fd, data, len, MSG_DONTWAIT, remote,
+                        sizeof(struct sockaddr));
+        else
+            rc = sendmsg(fd, &m, MSG_DONTWAIT);
+        if (rc >= 0 || (errno != EINVAL && errno != ENETUNREACH))
             return rc;
 
         /*
@@ -302,19 +331,17 @@ int netsnmp_udpbase_sendto(int fd, struct in_addr *srcip, int if_index,
 
             memset(&ipi, 0, sizeof(ipi));
             ipi.ipi_ifindex = if_index;
-#if defined(cygwin)
-            ipi.ipi_addr.s_addr = INADDR_ANY;
-#else
+#ifdef HAVE_STRUCT_IN_PKTINFO_IPI_SPEC_DST
             ipi.ipi_spec_dst.s_addr = INADDR_ANY;
 #endif
             memcpy(CMSG_DATA(cm), &ipi, sizeof(ipi));
         }
-#elif defined(IP_SENDSRCADDR)
+#elif defined(HAVE_IP_SENDSRCADDR)
         cm->cmsg_level = IPPROTO_IP;
         cm->cmsg_type = IP_SENDSRCADDR;
         memcpy((struct in_addr *)CMSG_DATA(cm), srcip, sizeof(struct in_addr));
 #endif
-        rc = sendmsg(fd, &m, MSG_NOSIGNAL|MSG_DONTWAIT);
+        rc = sendmsg(fd, &m, MSG_DONTWAIT);
         if (rc >= 0 || errno != EINVAL)
             return rc;
 
@@ -323,19 +350,24 @@ int netsnmp_udpbase_sendto(int fd, struct in_addr *srcip, int if_index,
         m.msg_controllen = 0;
     }
 
-    return sendmsg(fd, &m, MSG_NOSIGNAL|MSG_DONTWAIT);
+    return sendmsg(fd, &m, MSG_DONTWAIT);
+}
 #else /* !defined(WIN32) */
+int netsnmp_udpbase_sendto_win32(int fd, const struct in_addr *srcip,
+                                 int if_index, const struct sockaddr *remote,
+                                 const void *data, int len)
+{
     WSABUF        wsabuf;
     WSAMSG        m;
     char          cmsg[WSA_CMSG_SPACE(sizeof(struct in_pktinfo))];
     DWORD         bytes_sent;
     int           rc;
 
-    wsabuf.buf = data;
+    wsabuf.buf = NETSNMP_REMOVE_CONST(void *, data);
     wsabuf.len = len;
 
     memset(&m, 0, sizeof(m));
-    m.name          = remote;
+    m.name          = NETSNMP_REMOVE_CONST(struct sockaddr *, remote);
     m.namelen       = sizeof(struct sockaddr_in);
     m.lpBuffers     = &wsabuf;
     m.dwBufferCount = 1;
@@ -371,6 +403,17 @@ int netsnmp_udpbase_sendto(int fd, struct in_addr *srcip, int if_index,
     }
     rc = sendto(fd, data, len, 0, remote, sizeof(struct sockaddr));
     return rc;
+}
+#endif /* !defined(WIN32) */
+
+int netsnmp_udpbase_sendto(int fd, const struct in_addr *srcip, int if_index,
+                           const struct sockaddr *remote, const void *data,
+                           int len)
+{
+#if !defined(WIN32)
+    return netsnmp_udpbase_sendto_unix(fd, srcip, if_index, remote, data, len);
+#else /* !defined(WIN32) */
+    return netsnmp_udpbase_sendto_win32(fd, srcip, if_index, remote, data, len);
 #endif /* !defined(WIN32) */
 }
 #endif /* HAVE_IP_PKTINFO || HAVE_IP_RECVDSTADDR */
@@ -391,21 +434,19 @@ netsnmp_udpbase_recv(netsnmp_transport *t, void *buf, int size,
     struct sockaddr *from;
 
     if (t != NULL && t->sock >= 0) {
-        addr_pair = (netsnmp_indexed_addr_pair *) malloc(sizeof(netsnmp_indexed_addr_pair));
+        addr_pair = SNMP_MALLOC_TYPEDEF(netsnmp_indexed_addr_pair);
         if (addr_pair == NULL) {
             *opaque = NULL;
             *olength = 0;
             return -1;
-        } else {
-            memset(addr_pair, 0, sizeof(netsnmp_indexed_addr_pair));
+        } else
             from = &addr_pair->remote_addr.sa;
-        }
 
 	while (rc < 0) {
 #ifdef netsnmp_udpbase_recvfrom_sendto_defined
             socklen_t local_addr_len = sizeof(addr_pair->local_addr);
             rc = netsnmp_udp_recvfrom(t->sock, buf, size, from, &fromlen,
-                                      (struct sockaddr*)&(addr_pair->local_addr),
+                                      &addr_pair->local_addr.sa,
                                       &local_addr_len, &(addr_pair->if_index));
 #else
             rc = recvfrom(t->sock, buf, size, MSG_DONTWAIT, from, &fromlen);
@@ -437,27 +478,35 @@ netsnmp_udpbase_recv(netsnmp_transport *t, void *buf, int size,
 
 
 int
-netsnmp_udpbase_send(netsnmp_transport *t, void *buf, int size,
+netsnmp_udpbase_send(netsnmp_transport *t, const void *buf, int size,
                      void **opaque, int *olength)
 {
     int rc = -1;
-    netsnmp_indexed_addr_pair *addr_pair = NULL;
-    struct sockaddr *to = NULL;
+    const netsnmp_indexed_addr_pair *addr_pair = NULL;
+    const struct sockaddr *to = NULL;
 
-    if (opaque != NULL && *opaque != NULL &&
+    if (opaque != NULL && *opaque != NULL && NULL != olength &&
         ((*olength == sizeof(netsnmp_indexed_addr_pair) ||
           (*olength == sizeof(struct sockaddr_in))))) {
-        addr_pair = (netsnmp_indexed_addr_pair *) (*opaque);
+        addr_pair = (const netsnmp_indexed_addr_pair *) (*opaque);
     } else if (t != NULL && t->data != NULL &&
                 t->data_length == sizeof(netsnmp_indexed_addr_pair)) {
         addr_pair = (netsnmp_indexed_addr_pair *) (t->data);
+    } else {
+        int len = -1;
+        if (opaque != NULL && *opaque != NULL && NULL != olength)
+            len = *olength;
+        else if (t != NULL && t->data != NULL)
+            len = t->data_length;
+        snmp_log(LOG_ERR, "unknown addr type of size %d\n", len);
+        return SNMPERR_GENERR;
     }
 
     to = &addr_pair->remote_addr.sa;
 
     if (to != NULL && t != NULL && t->sock >= 0) {
         DEBUGIF("netsnmp_udp") {
-            char *str = netsnmp_udp_fmtaddr(NULL, (void *) addr_pair,
+            char *str = netsnmp_udp_fmtaddr(NULL, addr_pair,
                                             sizeof(netsnmp_indexed_addr_pair));
             DEBUGMSGTL(("netsnmp_udp", "send %d bytes from %p to %s on fd %d\n",
                         size, buf, str, t->sock));
@@ -491,6 +540,8 @@ netsnmp_udp_base_ctor(void)
     DWORD nbytes;
     int result;
 
+    netsnmp_static_assert(sizeof(in_addr_t) ==
+                          sizeof((struct sockaddr_in *)NULL)->sin_addr);
     netsnmp_assert(s != SOCKET_ERROR);
     /* WSARecvMsg(): Windows XP / Windows Server 2003 and later */
     result = WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER,

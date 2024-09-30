@@ -1,3 +1,14 @@
+/*
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ */
+
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 
@@ -7,38 +18,38 @@
 
 #include <net-snmp/agent/table_dataset.h>
 
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 
-netsnmp_feature_child_of(table_dataset_all, mib_helpers)
-netsnmp_feature_child_of(table_dataset, table_dataset_all)
-netsnmp_feature_child_of(table_dataset_remove_row, table_dataset_all)
-netsnmp_feature_child_of(table_data_set_column, table_dataset_all)
-netsnmp_feature_child_of(table_dataset_get_newrow, table_dataset_all)
-netsnmp_feature_child_of(table_set_add_indexes, table_dataset_all)
-netsnmp_feature_child_of(delete_table_data_set, table_dataset_all)
-netsnmp_feature_child_of(table_set_multi_add_default_row, table_dataset_all)
-netsnmp_feature_child_of(table_dataset_unregister_auto_data_table, table_dataset_all)
+netsnmp_feature_child_of(table_dataset_all, mib_helpers);
+netsnmp_feature_child_of(table_dataset, table_dataset_all);
+netsnmp_feature_child_of(table_dataset_remove_row, table_dataset_all);
+netsnmp_feature_child_of(table_data_set_column, table_dataset_all);
+netsnmp_feature_child_of(table_dataset_get_newrow, table_dataset_all);
+netsnmp_feature_child_of(table_set_add_indexes, table_dataset_all);
+netsnmp_feature_child_of(delete_table_data_set, table_dataset_all);
+netsnmp_feature_child_of(table_set_multi_add_default_row, table_dataset_all);
+netsnmp_feature_child_of(table_dataset_unregister_auto_data_table, table_dataset_all);
 
 #ifdef NETSNMP_FEATURE_REQUIRE_TABLE_DATASET
-netsnmp_feature_require(table_get_or_create_row_stash)
-netsnmp_feature_require(table_data_delete_table)
-netsnmp_feature_require(table_data)
-netsnmp_feature_require(oid_stash_get_data)
-netsnmp_feature_require(oid_stash_add_data)
+netsnmp_feature_require(table_get_or_create_row_stash);
+netsnmp_feature_require(table_data_delete_table);
+netsnmp_feature_require(table_data);
+netsnmp_feature_require(oid_stash_get_data);
+netsnmp_feature_require(oid_stash_add_data);
 #endif /* NETSNMP_FEATURE_REQUIRE_TABLE_DATASET */
 
 #ifndef NETSNMP_FEATURE_REMOVE_TABLE_DATASET
 
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-netsnmp_feature_require(oid_stash)
+netsnmp_feature_require(oid_stash);
 #endif /* !NETSNMP_NO_WRITE_SUPPORT */
 
 #ifndef NETSNMP_DISABLE_MIB_LOADING
-netsnmp_feature_require(mib_to_asn_type)
+netsnmp_feature_require(mib_to_asn_type);
 #endif /* NETSNMP_DISABLE_MIB_LOADING */
 
 static netsnmp_data_list *auto_tables;
@@ -425,6 +436,7 @@ netsnmp_register_table_data_set(netsnmp_handler_registration *reginfo,
                                 netsnmp_table_data_set *data_set,
                                 netsnmp_table_registration_info *table_info)
 {
+    netsnmp_mib_handler *handler;
     int ret;
 
     if (NULL == table_info) {
@@ -462,8 +474,15 @@ netsnmp_register_table_data_set(netsnmp_handler_registration *reginfo,
             table_info->max_column = maxcol;
     }
 
-    netsnmp_inject_handler(reginfo,
-                           netsnmp_get_table_data_set_handler(data_set));
+    handler = netsnmp_get_table_data_set_handler(data_set);
+    if (!handler ||
+        (netsnmp_inject_handler(reginfo, handler) != SNMPERR_SUCCESS)) {
+        snmp_log(LOG_ERR, "could not create table data set handler\n");
+        netsnmp_handler_free(handler);
+        netsnmp_handler_registration_free(reginfo);
+        return MIB_REGISTRATION_FAILED;
+    }
+
     ret = netsnmp_register_table_data(reginfo, data_set->table,
                                        table_info);
     if (ret == SNMPERR_SUCCESS && reginfo->handler)
@@ -502,23 +521,28 @@ netsnmp_table_data_set_helper_handler(netsnmp_mib_handler *handler,
                                       netsnmp_request_info *requests)
 {
     netsnmp_table_data_set_storage *data = NULL;
-    newrow_stash   *newrowstash = NULL;
-    netsnmp_table_row *row, *newrow = NULL;
     netsnmp_table_request_info *table_info;
     netsnmp_request_info *request;
+    netsnmp_table_row *row = NULL;
+#ifndef NETSNMP_NO_WRITE_SUPPORT
     netsnmp_oid_stash_node **stashp = NULL;
+    netsnmp_table_row *newrow = NULL;
+    newrow_stash   *newrowstash = NULL;
+#endif /* NETSNMP_NO_WRITE_SUPPORT */
 
     if (!handler)
         return SNMPERR_GENERR;
         
     DEBUGMSGTL(("netsnmp_table_data_set", "handler starting\n"));
     for (request = requests; request; request = request->next) {
+#ifndef NETSNMP_NO_WRITE_SUPPORT
         netsnmp_table_data_set *datatable =
             (netsnmp_table_data_set *) handler->myvoid;
         const oid * const suffix =
             requests->requestvb->name + reginfo->rootoid_len + 2;
         const size_t suffix_len =
             requests->requestvb->name_length - (reginfo->rootoid_len + 2);
+#endif /* NETSNMP_NO_WRITE_SUPPORT */
 
         if (request->processed)
             continue;

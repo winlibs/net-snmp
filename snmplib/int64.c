@@ -11,7 +11,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#if HAVE_STRING_H
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -33,7 +36,7 @@
  * @param[out] puR   Remainder.
  */
 void
-divBy10(U64 u64, U64 * pu64Q, unsigned int *puR)
+divBy10(struct counter64 u64, struct counter64 *pu64Q, unsigned int *puR)
 {
     unsigned long   ulT;
     unsigned long   ulQ;
@@ -83,7 +86,7 @@ divBy10(U64 u64, U64 * pu64Q, unsigned int *puR)
  * @param[out] pu64P Product.
  */
 void
-multBy10(U64 u64, U64 * pu64P)
+multBy10(struct counter64 u64, struct counter64 *pu64P)
 {
     unsigned long   ulT;
     unsigned long   ulP;
@@ -130,7 +133,7 @@ multBy10(U64 u64, U64 * pu64P)
  *
  */
 void
-incrByU16(U64 * pu64, unsigned int u16)
+incrByU16(struct counter64 *pu64, unsigned int u16)
 {
     incrByU32(pu64, u16);
 }
@@ -143,7 +146,7 @@ incrByU16(U64 * pu64, unsigned int u16)
  *
  */
 void
-incrByU32(U64 * pu64, unsigned int u32)
+incrByU32(struct counter64 *pu64, unsigned int u32)
 {
     uint32_t tmp;
 
@@ -161,7 +164,8 @@ incrByU32(U64 * pu64, unsigned int u32)
  * @param[out] pu64out pu64one - pu64two.
  */
 void
-u64Subtract(const U64 * pu64one, const U64 * pu64two, U64 * pu64out)
+u64Subtract(const struct counter64 *pu64one, const struct counter64 *pu64two,
+            struct counter64 *pu64out)
 {
     int carry;
 
@@ -177,7 +181,7 @@ u64Subtract(const U64 * pu64one, const U64 * pu64two, U64 * pu64out)
  * @param[in,out] pu64out pu64out += pu64one.
  */
 void
-u64Incr(U64 * pu64out, const U64 * pu64one)
+u64Incr(struct counter64 *pu64out, const struct counter64 *pu64one)
 {
     pu64out->high = (uint32_t)(pu64out->high + pu64one->high);
     incrByU32(pu64out, pu64one->low);
@@ -191,15 +195,16 @@ u64Incr(U64 * pu64out, const U64 * pu64one)
  * @param[out] pu64out pu64out += (pu64one - pu64two)
  */
 void
-u64UpdateCounter(U64 * pu64out, const U64 * pu64one, const U64 * pu64two)
+u64UpdateCounter(struct counter64 *pu64out, const struct counter64 *pu64one,
+                 const struct counter64 *pu64two)
 {
-    U64 tmp;
+    struct counter64 tmp;
 
     u64Subtract(pu64one, pu64two, &tmp);
     u64Incr(pu64out, &tmp);
 }
 
-netsnmp_feature_child_of(u64copy, netsnmp_unused)
+netsnmp_feature_child_of(u64copy, netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_U64COPY
 /**
  * Copy a 64-bit number.
@@ -208,7 +213,7 @@ netsnmp_feature_child_of(u64copy, netsnmp_unused)
  * @param[out] pu64one Where to store the copy - *pu64one = *pu64two.
  */
 void
-u64Copy(U64 * pu64one, const U64 * pu64two)
+u64Copy(struct counter64 *pu64one, const struct counter64 *pu64two)
 {
     *pu64one = *pu64two;
 }
@@ -220,7 +225,7 @@ u64Copy(U64 * pu64one, const U64 * pu64two)
  * @param[in] pu64 Number to be zeroed.
  */
 void
-zeroU64(U64 * pu64)
+zeroU64(struct counter64 *pu64)
 {
     pu64->low = 0;
     pu64->high = 0;
@@ -232,7 +237,7 @@ zeroU64(U64 * pu64)
  * @param[in] pu64 Number to be checked.
  */
 int
-isZeroU64(const U64 * pu64)
+isZeroU64(const struct counter64 *pu64)
 {
     return pu64->low == 0 && pu64->high == 0;
 }
@@ -261,7 +266,7 @@ isZeroU64(const U64 * pu64)
  * @retval -2 : unexpected high value (changed by more than 1)
  */
 int
-netsnmp_c64_check_for_32bit_wrap(struct counter64 *old_val,
+netsnmp_c64_check_for_32bit_wrap(const struct counter64 *old_val,
                                  struct counter64 *new_val,
                                  int adjust)
 {
@@ -333,8 +338,10 @@ netsnmp_c64_check_for_32bit_wrap(struct counter64 *old_val,
  * @retval -2 : look like we have 64 bit values, but sums aren't consistent
  */
 int
-netsnmp_c64_check32_and_update(struct counter64 *prev_val, struct counter64 *new_val,
-                               struct counter64 *old_prev_val, int *need_wrap_check)
+netsnmp_c64_check32_and_update(struct counter64 *prev_val,
+                               struct counter64 *new_val,
+                               const struct counter64 *old_prev_val,
+                               int *need_wrap_check)
 {
     int rc;
 
@@ -345,7 +352,7 @@ netsnmp_c64_check32_and_update(struct counter64 *prev_val, struct counter64 *new
      *    prev->stats += (new->stats - prev->old_stats)
      */
     if ((NULL == need_wrap_check) || (0 != *need_wrap_check)) {
-        rc = netsnmp_c64_check_for_32bit_wrap(old_prev_val,new_val, 1);
+        rc = netsnmp_c64_check_for_32bit_wrap(old_prev_val, new_val, 1);
         if (rc < 0) {
             DEBUGMSGTL(("c64","32 bit check failed\n"));
             return -1;
@@ -367,7 +374,8 @@ netsnmp_c64_check32_and_update(struct counter64 *prev_val, struct counter64 *new
          * check wrap incremented high, so reset it. (Because having
          * high set for a 32 bit counter will confuse us in the next update).
          */
-        netsnmp_assert(1 == new_val->high);
+        if (1 != new_val->high)
+            DEBUGMSGTL(("c64", "error expanding to 64 bits: new_val->high != 1"));
         new_val->high = 0;
     }
     else if (64 == rc) {
@@ -390,10 +398,10 @@ netsnmp_c64_check32_and_update(struct counter64 *prev_val, struct counter64 *new
 /** Convert an unsigned 64-bit number to ASCII. */
 void
 printU64(char *buf, /* char [I64CHARSZ+1]; */
-         const U64 * pu64)
+         const struct counter64 *pu64)
 {
-    U64             u64a;
-    U64             u64b;
+    struct counter64 u64a;
+    struct counter64 u64b;
 
     char            aRes[I64CHARSZ + 1];
     unsigned int    u;
@@ -414,9 +422,9 @@ printU64(char *buf, /* char [I64CHARSZ+1]; */
 /** Convert a signed 64-bit number to ASCII. */
 void
 printI64(char *buf, /* char [I64CHARSZ+1]; */
-         const U64 * pu64)
+         const struct counter64 *pu64)
 {
-    U64             u64a;
+    struct counter64 u64a;
 
     if (pu64->high & 0x80000000) {
         u64a.high = (uint32_t) ~pu64->high;
@@ -429,11 +437,11 @@ printI64(char *buf, /* char [I64CHARSZ+1]; */
     }
 }
 
-/** Convert a signed 64-bit integer from ASCII to U64. */
+/** Convert a signed 64-bit integer from ASCII to struct counter64. */
 int
-read64(U64 * i64, const char *str)
+read64(struct counter64 *i64, const char *str)
 {
-    U64             i64p;
+    struct counter64 i64p;
     unsigned int    u;
     int             sign = 0;
     int             ok = 0;

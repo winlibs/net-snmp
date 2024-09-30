@@ -16,6 +16,7 @@
 #include "ip-forward-mib/data_access/route_sysctl.h"
 #include "ip-forward-mib/inetCidrRouteTable/inetCidrRouteTable_constants.h"
 #include "if-mib/data_access/interface_ioctl.h"
+#include "route_private.h"
 
 static int _load_ipv4(netsnmp_container*, int*);
 static int _load_ipv6(netsnmp_container*, int*);
@@ -223,6 +224,14 @@ _load_routing_table_from_sysctl(netsnmp_container* container, int *index,
          */
         if (rtm->rtm_addrs == RTA_DST)
             continue;
+#ifdef RTF_CLONED
+	if (rtm->rtm_flags & RTF_CLONED)
+	    continue;
+#endif
+#ifdef RTF_WASCLONED
+	if (rtm->rtm_flags & RTF_WASCLONED)
+	    continue;
+#endif
 
         entry = netsnmp_access_route_entry_create();
         if (entry == NULL)

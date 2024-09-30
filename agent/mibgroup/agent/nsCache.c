@@ -13,7 +13,7 @@
 #include <net-snmp/agent/cache_handler.h>
 #include "agent/nsCache.h"
 
-netsnmp_feature_require(cache_get_head)
+netsnmp_feature_require(cache_get_head);
 
 
 /*
@@ -96,6 +96,7 @@ init_nsCache(void)
      */
     iinfo      = SNMP_MALLOC_TYPEDEF(netsnmp_iterator_info);
     if (!iinfo) {
+        SNMP_FREE(table_info);
         return;
     }
     iinfo->get_first_data_point = get_first_cache_entry;

@@ -2,6 +2,9 @@
 #define ASN1_H
 
 #include <net-snmp/library/oid.h>
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
 
 #ifdef __cplusplus
 extern          "C" {
@@ -37,7 +40,11 @@ WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
 ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 SOFTWARE.
 ******************************************************************/
-
+/*
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ */
 
 #define MIN_OID_LEN	    2
 #define MAX_OID_LEN	    128 /* max subid's in an oid */
@@ -48,26 +55,26 @@ SOFTWARE.
 #define OID_LENGTH(x)  (sizeof(x)/sizeof(oid))
 
 
-#define ASN_BOOLEAN	    ((u_char)0x01)
-#define ASN_INTEGER	    ((u_char)0x02)
-#define ASN_BIT_STR	    ((u_char)0x03)
-#define ASN_OCTET_STR	    ((u_char)0x04)
-#define ASN_NULL	    ((u_char)0x05)
-#define ASN_OBJECT_ID	    ((u_char)0x06)
-#define ASN_SEQUENCE	    ((u_char)0x10)
-#define ASN_SET		    ((u_char)0x11)
+#define ASN_BOOLEAN	    0x01U
+#define ASN_INTEGER	    0x02U
+#define ASN_BIT_STR	    0x03U
+#define ASN_OCTET_STR	    0x04U
+#define ASN_NULL	    0x05U
+#define ASN_OBJECT_ID	    0x06U
+#define ASN_SEQUENCE	    0x10U
+#define ASN_SET		    0x11U
 
-#define ASN_UNIVERSAL	    ((u_char)0x00)
-#define ASN_APPLICATION     ((u_char)0x40)
-#define ASN_CONTEXT	    ((u_char)0x80)
-#define ASN_PRIVATE	    ((u_char)0xC0)
+#define ASN_UNIVERSAL	    0x00U
+#define ASN_APPLICATION     0x40U
+#define ASN_CONTEXT	    0x80U
+#define ASN_PRIVATE	    0xC0U
 
-#define ASN_PRIMITIVE	    ((u_char)0x00)
-#define ASN_CONSTRUCTOR	    ((u_char)0x20)
+#define ASN_PRIMITIVE	    0x00U
+#define ASN_CONSTRUCTOR	    0x20U
 
-#define ASN_LONG_LEN	    (0x80)
-#define ASN_EXTENSION_ID    (0x1F)
-#define ASN_BIT8	    (0x80)
+#define ASN_LONG_LEN	    0x80U
+#define ASN_EXTENSION_ID    0x1FU
+#define ASN_BIT8	    0x80U
 
 #define IS_CONSTRUCTOR(byte)	((byte) & ASN_CONSTRUCTOR)
 #define IS_EXTENSION_ID(byte)	(((byte) & ASN_EXTENSION_ID) == ASN_EXTENSION_ID)
@@ -103,9 +110,9 @@ SOFTWARE.
      * base value for the second octet of the tag - the
      * second octet was the value for the tag 
      */
-#define ASN_OPAQUE_TAG2 ((u_char)0x30)
+#define ASN_OPAQUE_TAG2 0x30U
 
-#define ASN_OPAQUE_TAG2U ((u_char)0x2f) /* second octet of tag for union */
+#define ASN_OPAQUE_TAG2U 0x2fU /* second octet of tag for union */
 
     /*
      * All the ASN.1 types for SNMP "should have been" defined in this file,
@@ -174,9 +181,11 @@ SOFTWARE.
 #define ASN_PRIV_IMPLIED_OCTET_STR  (ASN_PRIVATE | ASN_OCTET_STR)       /* 4 */
 #define ASN_PRIV_IMPLIED_OBJECT_ID  (ASN_PRIVATE | ASN_OBJECT_ID)       /* 6 */
 #define ASN_PRIV_RETRY      (ASN_PRIVATE | 7)   /* 199 */
+#define ASN_PRIV_STOP       (ASN_PRIVATE | 8)   /* 200 */
 #define IS_DELEGATED(x)   ((x) == ASN_PRIV_DELEGATED)
 
 
+    NETSNMP_IMPORT
     int             asn_check_packet(u_char *, size_t);
     NETSNMP_IMPORT
     u_char         *asn_parse_int(u_char *, size_t *, u_char *, long *,
@@ -198,6 +207,7 @@ SOFTWARE.
                                      const u_char *, size_t);
     NETSNMP_IMPORT
     u_char         *asn_parse_header(u_char *, size_t *, u_char *);
+    NETSNMP_IMPORT
     u_char         *asn_parse_sequence(u_char *, size_t *, u_char *, u_char expected_type,      /* must be this type */
                                        const char *estr);       /* error message prefix */
     NETSNMP_IMPORT
@@ -230,16 +240,22 @@ SOFTWARE.
     NETSNMP_IMPORT
     u_char         *asn_build_unsigned_int64(u_char *, size_t *, u_char,
                                              const struct counter64 *, size_t);
+    NETSNMP_IMPORT
     u_char         *asn_parse_signed_int64(u_char *, size_t *, u_char *,
                                            struct counter64 *, size_t);
+    NETSNMP_IMPORT
     u_char         *asn_build_signed_int64(u_char *, size_t *, u_char,
                                            const struct counter64 *, size_t);
+    NETSNMP_IMPORT
     u_char         *asn_build_float(u_char *, size_t *, u_char, const float *,
                                     size_t);
+    NETSNMP_IMPORT
     u_char         *asn_parse_float(u_char *, size_t *, u_char *, float *,
                                     size_t);
+    NETSNMP_IMPORT
     u_char         *asn_build_double(u_char *, size_t *, u_char, const double *,
                                      size_t);
+    NETSNMP_IMPORT
     u_char         *asn_parse_double(u_char *, size_t *, u_char *,
                                      double *, size_t);
 
@@ -249,6 +265,7 @@ SOFTWARE.
      * Re-allocator function for below.  
      */
 
+    NETSNMP_IMPORT
     int             asn_realloc(u_char **, size_t *);
 
     /*
@@ -356,11 +373,13 @@ SOFTWARE.
      */
 
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_int(u_char ** pkt, size_t * pkt_len,
                                            size_t * offset,
                                            int allow_realloc, u_char type,
                                            const long *data, size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_string(u_char ** pkt,
                                               size_t * pkt_len,
                                               size_t * offset,
@@ -369,6 +388,7 @@ SOFTWARE.
                                               const u_char * data,
                                               size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_unsigned_int(u_char ** pkt,
                                                     size_t * pkt_len,
                                                     size_t * offset,
@@ -377,6 +397,7 @@ SOFTWARE.
                                                     const u_long * data,
                                                     size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_header(u_char ** pkt,
                                               size_t * pkt_len,
                                               size_t * offset,
@@ -384,6 +405,7 @@ SOFTWARE.
                                               u_char type,
                                               size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_sequence(u_char ** pkt,
                                                 size_t * pkt_len,
                                                 size_t * offset,
@@ -391,12 +413,14 @@ SOFTWARE.
                                                 u_char type,
                                                 size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_length(u_char ** pkt,
                                               size_t * pkt_len,
                                               size_t * offset,
                                               int allow_realloc,
                                               size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_objid(u_char ** pkt,
                                              size_t * pkt_len,
                                              size_t * offset,
@@ -404,12 +428,14 @@ SOFTWARE.
                                              u_char type, const oid *,
                                              size_t);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_null(u_char ** pkt,
                                             size_t * pkt_len,
                                             size_t * offset,
                                             int allow_realloc,
                                             u_char type);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_bitstring(u_char ** pkt,
                                                  size_t * pkt_len,
                                                  size_t * offset,
@@ -418,6 +444,7 @@ SOFTWARE.
                                                  const u_char * data,
                                                  size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_unsigned_int64(u_char ** pkt,
                                                       size_t * pkt_len,
                                                       size_t * offset,
@@ -426,6 +453,7 @@ SOFTWARE.
                                                       struct counter64
                                                       const *data, size_t);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_signed_int64(u_char ** pkt,
                                                     size_t * pkt_len,
                                                     size_t * offset,
@@ -434,6 +462,7 @@ SOFTWARE.
                                                     const struct counter64 *data,
                                                     size_t);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_float(u_char ** pkt,
                                              size_t * pkt_len,
                                              size_t * offset,
@@ -441,6 +470,7 @@ SOFTWARE.
                                              u_char type, const float *data,
                                              size_t data_size);
 
+    NETSNMP_IMPORT
     int             asn_realloc_rbuild_double(u_char ** pkt,
                                               size_t * pkt_len,
                                               size_t * offset,

@@ -1,11 +1,11 @@
 /*
- * cheap and dirty network database lookup functions 
+ * cheap and dirty network database lookup functions
  */
 /*
- * uses local files only 
+ * uses local files only
  */
 /*
- * currently searches the protocols only 
+ * currently searches the protocols only
  */
 
 #include <net-snmp/net-snmp-config.h>
@@ -19,17 +19,25 @@
 
 #include <stdio.h>
 #include <sys/types.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
+#ifdef cygwin
+#define getnetent cygwin_getnetent
+#define getnetbyaddr cygwin_getnetbyaddr
+#endif
 #include <netdb.h>
+#ifdef cygwin
+#undef getnetent
+#undef getnetbyaddr
+#endif
 #endif
 
 static int      h_stay_open, s_stay_open, p_stay_open, n_stay_open;
@@ -66,7 +74,7 @@ pre_env(void)
     if (cp) {
         ;
         /*
-         * printf ("Root is '%s'\n", cp); 
+         * printf ("Root is '%s'\n", cp);
          */
     } else
         cp = "C:\\WINNT";
@@ -94,7 +102,7 @@ pre_env(void)
 }
 
 /*
- * sets can open. ends must close. 
+ * sets can open. ends must close.
  */
 void
 endhostent(void)
@@ -163,16 +171,17 @@ setnetent(int stay_open)
 #define STRTOK_DELIMS " \t\n"
 
 /*
- * get next entry from data base file, or from NIS if possible. 
+ * get next entry from data base file, or from NIS if possible.
  */
 /*
- * returns 0 if there are no more entries to read. 
+ * returns 0 if there are no more entries to read.
  */
 struct hostent *
 gethostent(void)
 {
     return 0;
 }
+
 struct servent *
 getservent(void)
 {
@@ -187,7 +196,7 @@ getprotoent(void)
     static char    *ali[10];
     struct protoent *px = &spx;
     int             linecnt = 0;
-    char            *st;
+    char           *st;
 
     for (alp = ali; *alp; free(*alp), *alp = 0, alp++);
     if (px->p_name)
@@ -234,6 +243,7 @@ getprotoent(void)
 
     return 0;
 }
+
 struct netent  *
 getnetent(void)
 {
@@ -247,7 +257,7 @@ getnetbyaddr(long net, int type)
 }
 
 /*
- * Return the network number from an internet address 
+ * Return the network number from an internet address
  */
 u_long
 inet_netof(struct in_addr in)
@@ -265,7 +275,7 @@ inet_netof(struct in_addr in)
 }
 
 /*
- * Return the host number from an internet address 
+ * Return the host number from an internet address
  */
 u_long
 inet_lnaof(struct in_addr in)
@@ -277,7 +287,7 @@ inet_lnaof(struct in_addr in)
     if (0x80 == (ii & 0xc0))
         return (0x0000ffff & i);
     /*
-     * if (0xc0 == (ii & 0xe0)) 
+     * if (0xc0 == (ii & 0xe0))
      */
     return (0x000000ff & i);
 }

@@ -5,15 +5,13 @@
 HEADER TLS-TCP over IPV6
 
 SKIPIFNOT NETSNMP_TRANSPORT_TLSTCP_DOMAIN
-SKIPIFNOT NETSNMP_TRANSPORT_TLSIPV6_DOMAIN
 
-# ensure we have a localhost6 entry
+openssl_version=$(openssl version | cut -d ' ' -f2)
+major=$(echo $openssl_version | cut -c1)
+minor=$(echo $openssl_version | cut -c3)
 
-# XXX: this stems from broken issues in openssl that refuse [::1]:
-# style accept strings (it works for client connections).
-grep localhost6 /etc/hosts > /dev/null 2>&1
-if [ $? = 1 ] ; then
-    SKIP This test requires a localhost6 entry in /etc/hosts
+if [ $major -lt 1 ] || { [ $major -eq 1 ] && [ $minor -eq 0 ]; }; then
+    SKIP "openssl version $openssl_version does not support IPv6"
 fi
 
 #
@@ -21,7 +19,7 @@ fi
 #
 
 SNMP_TRANSPORT_SPEC=tlstcp
-SNMP_TEST_DEST='localhost6:'
+SNMP_TEST_DEST='[::1]:'
 export SNMP_TRANSPORT_SPEC
 export SNMP_SNMPD_PORT
 export SNMP_TEST_DEST

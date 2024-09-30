@@ -25,41 +25,41 @@ SOFTWARE.
 **********************************************************************/
 #include <net-snmp/net-snmp-config.h>
 
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 #include <net-snmp/utilities.h>
 #include <sys/types.h>
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_SYS_SELECT_H
+#ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
 #include <stdio.h>
 #include <ctype.h>
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
@@ -138,19 +138,22 @@ main(int argc, char *argv[])
     int             arg;
     int             count;
     int             status;
-    int             exitval = 0;
+    int             exitval = 1;
+
+    SOCK_STARTUP;
 
     /*
      * get the common command line arguments 
      */
     switch (arg = snmp_parse_args(argc, argv, &session, "C:", optProc)) {
     case NETSNMP_PARSE_ARGS_ERROR:
-        exit(1);
+        goto out;
     case NETSNMP_PARSE_ARGS_SUCCESS_EXIT:
-        exit(0);
+        exitval = 0;
+        goto out;
     case NETSNMP_PARSE_ARGS_ERROR_USAGE:
         usage();
-        exit(1);
+        goto out;
     default:
         break;
     }
@@ -158,7 +161,7 @@ main(int argc, char *argv[])
     names = argc - arg;
     if (names < non_repeaters) {
         fprintf(stderr, "snmpbulkget: need more objects than <nonrep>\n");
-        exit(1);
+        goto out;
     }
 
     namep = name = (struct nameStruct *) calloc(names, sizeof(*name));
@@ -167,13 +170,11 @@ main(int argc, char *argv[])
         if (snmp_parse_oid(argv[arg], namep->name, &namep->name_len) ==
             NULL) {
             snmp_perror(argv[arg]);
-            exit(1);
+            goto out;
         }
         arg++;
         namep++;
     }
-
-    SOCK_STARTUP;
 
     /*
      * open an SNMP session 
@@ -184,9 +185,10 @@ main(int argc, char *argv[])
          * diagnose snmp_open errors with the input netsnmp_session pointer 
          */
         snmp_sess_perror("snmpbulkget", &session);
-        SOCK_CLEANUP;
-        exit(1);
+        goto out;
     }
+
+    exitval = 0;
 
     /*
      * create PDU for GETBULK request and add object name to request 
@@ -245,6 +247,9 @@ main(int argc, char *argv[])
         snmp_free_pdu(response);
 
     snmp_close(ss);
+
+out:
+    netsnmp_cleanup_session(&session);
     SOCK_CLEANUP;
     return exitval;
 }

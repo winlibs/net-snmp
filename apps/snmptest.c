@@ -27,40 +27,40 @@ SOFTWARE.
 ******************************************************************/
 #include <net-snmp/net-snmp-config.h>
 
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 #include <sys/types.h>
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 #include <stdio.h>
 #include <ctype.h>
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_SYS_SELECT_H
+#ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
@@ -68,7 +68,7 @@ SOFTWARE.
 
 int             command = SNMP_MSG_GET;
 
-int             input_variable(netsnmp_variable_list *);
+static int      input_variable(netsnmp_variable_list *);
 
 void
 usage(void)
@@ -87,26 +87,28 @@ main(int argc, char *argv[])
     netsnmp_variable_list *vars, *vp;
     netsnmp_transport *transport = NULL;
     int             ret;
+    int             exit_code = 1;
     int             status, count;
     char            input[128];
     int             varcount, nonRepeaters = -1, maxRepetitions;
+
+    SOCK_STARTUP;
 
     /*
      * get the common command line arguments 
      */
     switch (snmp_parse_args(argc, argv, &session, NULL, NULL)) {
     case NETSNMP_PARSE_ARGS_ERROR:
-        exit(1);
+        goto out;
     case NETSNMP_PARSE_ARGS_SUCCESS_EXIT:
-        exit(0);
+        exit_code = 0;
+        goto out;
     case NETSNMP_PARSE_ARGS_ERROR_USAGE:
         usage();
-        exit(1);
+        goto out;
     default:
         break;
     }
-
-    SOCK_STARTUP;
 
     /*
      * open an SNMP session 
@@ -117,8 +119,7 @@ main(int argc, char *argv[])
          * diagnose snmp_open errors with the input netsnmp_session pointer 
          */
         snmp_sess_perror("snmptest", &session);
-        SOCK_CLEANUP;
-        exit(1);
+        goto out;
     }
 
     varcount = 0;
@@ -150,10 +151,10 @@ main(int argc, char *argv[])
                  * free the last (unused) variable 
                  */
                 if (vp->name)
-                    free((char *) vp->name);
+                    free(vp->name);
                 if (vp->val.string)
-                    free((char *) vp->val.string);
-                free((char *) vp);
+                    free(vp->val.string);
+                free(vp);
 
                 if (command == SNMP_MSG_GETBULK) {
                     if (nonRepeaters == -1) {
@@ -165,8 +166,8 @@ main(int argc, char *argv[])
                         fflush(stdout);
                         if (!fgets(input, sizeof(input), stdin)) {
                             printf("Quitting,  Goodbye\n");
-                            SOCK_CLEANUP;
-                            exit(0);
+                            exit_code = 0;
+                            goto out;
                         }
                         maxRepetitions = atoi(input);
                         pdu->non_repeaters = nonRepeaters;
@@ -279,6 +280,11 @@ main(int argc, char *argv[])
         nonRepeaters = -1;
     }
     /* NOTREACHED */
+
+out:
+    netsnmp_cleanup_session(&session);
+    SOCK_CLEANUP;
+    return exit_code;
 }
 
 int
@@ -301,7 +307,7 @@ input_variable(netsnmp_variable_list * vp)
         vp->name_length = 0;
         return 0;
     }
-    if (buf[val_len - 1] == '\n')
+    if (val_len && buf[val_len - 1] == '\n')
         buf[--val_len] = 0;
     if (*buf == '$') {
         switch (toupper((unsigned char)(buf[1]))) {

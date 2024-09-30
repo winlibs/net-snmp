@@ -4,6 +4,7 @@
 SHELL		= @SHELL@
 srcdir		= @srcdir@
 top_srcdir	= @top_srcdir@
+top_builddir	= @top_builddir@
 VERSION		= @VERSION@
 @SET_MAKE@
 
@@ -68,7 +69,7 @@ LINKCC	        = @LINKCC@
 #   last update, increment current (+5), and set age and revision to 0. Stop.
 #
 # - If any interfaces have been added since the last public release, then
-#   increment current and age, and set revision to 0. Stop.
+#   increment current AND age, and set revision to 0. Stop.
 # 
 # - If the source code has changed at all since the last update,
 #   then increment revision (c:r:a becomes c:r+1:a). 
@@ -80,11 +81,12 @@ LINKCC	        = @LINKCC@
 # 5.3 was at 10, 5.4 is at 15, ...  This leaves some room for needed
 # changes for past releases if absolutely necessary.
 #
-LIBCURRENT  = 30
-LIBAGE      = 0
-LIBREVISION = 3
+# Most recent change: 40 for the v5.8.1 release.
+LIBCURRENT  = 42
+LIBAGE      = 2
+LIBREVISION = 1
 
-LIB_LD_CMD      = $(LIBTOOL) --mode=link $(LINKCC) $(CFLAGS) -rpath $(libdir) -version-info $(LIBCURRENT):$(LIBREVISION):$(LIBAGE) -o
+LIB_LD_CMD      = $(LIBTOOL) --mode=link $(LINKCC) $(CFLAGS) -rpath $(libdir) -version-info $(LIBCURRENT):$(LIBREVISION):$(LIBAGE) @LD_NO_UNDEFINED@ -o
 LIB_EXTENSION   = la
 LIB_VERSION     =
 LIB_LDCONFIG_CMD = $(LIBTOOL) --mode=finish $(INSTALL_PREFIX)$(libdir)
@@ -97,7 +99,7 @@ RANLIB		= :
 .c.lo:
 	$(LIBTOOL) --mode=compile $(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 .rc.lo:
-	$(LIBTOOL) --mode=compile --tag=CC windres -o $@ -i $<
+	$(LIBTOOL) --mode=compile --tag=RC @RC@ -o $@ -i $<
 
 # include paths
 #

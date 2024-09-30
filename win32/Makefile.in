@@ -3,8 +3,16 @@ LINKTYPE=
 CFG=
 PREFIX=
 PREFIX_DOS=
+PERL_DEFINE=
+PERL_INC=
+PERL_CFLAGS=
 PERL=
 NMAKE=nmake /nologo
+APPS=
+APPS_CLEAN=
+
+# To make it possible for the Perl tests to find netsnmp.dll.
+PATH=$(MAKEDIR)\bin\$(CFG);$(PATH)
 
 all : libs apps snmptrapd snmpd local
 
@@ -26,9 +34,9 @@ libsnmp_clean : libsnmp_dll_clean_
 libs : libagent libsnmp libnetsnmptrapd netsnmpmibs 
 libs_clean : libagent_clean libsnmp_clean libnetsnmptrapd_clean netsnmpmibs_clean
 
-apps : snmpdf snmpset snmpusm snmptest snmptrap snmpvacm snmpwalk snmpdelta snmptable snmpstatus snmpbulkget snmpget snmpgetnext snmpbulkwalk snmptranslate encode_keychange snmpnetstat
+apps : $(APPS)
 
-apps_clean : snmpdf_clean snmpset_clean snmpusm_clean snmptest_clean snmptrap_clean snmpvacm_clean snmpwalk_clean snmpdelta_clean snmptable_clean snmpstatus_clean snmpbulkget_clean snmpget_clean snmpgetnext_clean snmpbulkwalk_clean snmptranslate_clean encode_keychange_clean snmpnetstat_clean
+apps_clean : $(APPS_CLEAN)
 
 local : snmpconf mib2c traptoemail
 
@@ -59,10 +67,12 @@ perl :
 	-@echo .
 !ENDIF	# dynamic/static check
 	cd ..\perl
+	REM For MakefileSubs.pm
+	set PERL5LIB=$(MAKEDIR)\..\perl
 !IF "$(CFG)" == "release"
-	perl Makefile.PL CAPI=TRUE -NET-SNMP-IN-SOURCE=TRUE
+	perl Makefile.PL CAPI=TRUE -NET-SNMP-IN-SOURCE=TRUE -NET-SNMP-CONFIG=do-not-use-net-snmp-config -NET-SNMP-DEFINE="$(PERL_DEFINE)" -NET-SNMP-INC="$(PERL_INC)" -NET-SNMP-CFLAGS="$(PERL_CFLAGS)" -NET-SNMP-PATH="$(PREFIX)"
 !ELSE	# release/debug check
-	perl Makefile.PL CAPI=TRUE -NET-SNMP-IN-SOURCE=TRUE -NET-SNMP-DEBUG=TRUE
+	perl Makefile.PL CAPI=TRUE -NET-SNMP-IN-SOURCE=TRUE -NET-SNMP-CONFIG=do-not-use-net-snmp-config -NET-SNMP-DEFINE="$(PERL_DEFINE)" -NET-SNMP-INC="$(PERL_INC)" -NET-SNMP-CFLAGS="$(PERL_CFLAGS)" -NET-SNMP-PATH="$(PREFIX)" -NET-SNMP-DEBUG=TRUE
 !ENDIF	# release/debug check
 	$(NMAKE)
 	cd ..\win32
@@ -74,7 +84,9 @@ perl_test :
 	-@echo Perl modules must be build against dynamic (DLL) libraries
 	-@echo .
 !ELSE	# dynamic/static check
+	cpan Win32::Process <NUL
 	cd ..\perl
+	REM set PERL5LIB=$(MAKEDIR)\..\perl;$(MAKEDIR)\..\perl\SNMP
 	$(NMAKE) test
 	cd ..\win32
 !ENDIF	# dynamic/static check
@@ -388,11 +400,7 @@ help ::
         @-echo "libs_clean      libagent_clean libnetsnmptrapd_clean          "
         @-echo "                libsnmp_clean netsnmpmibs_clean               "
         @-echo "                                                              "
-        @-echo "apps            encode_keychange snmpbulkget snmpbulkwalk     "
-        @-echo "                snmpdelta snmpdf snmpget snmpgetnext          "
-        @-echo "                snmpnetstsat snmpset snmpstatus snmptable     "
-        @-echo "                snmptest snmptranslate snmptrap snmpusm       "
-        @-echo "                snmpvacm snmpwalk                             "
+        @-echo "apps            $(APPS)"
         @-echo "                                                              "
         @-echo "apps_clean      (clean all the apps)                          "
         @-echo "                                                              "

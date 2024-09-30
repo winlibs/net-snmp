@@ -1,3 +1,14 @@
+/*
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ */
+
 #ifndef NET_SNMP_TYPES_H
 #define NET_SNMP_TYPES_H
 
@@ -11,48 +22,7 @@
 #error "Please include <net-snmp/net-snmp-config.h> before this file"
 #endif
 
-                        /*
-                         * For 'timeval' 
-                         */
-#if TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# if HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
 #include <sys/types.h>
-#if 1
-/*
- * If neither the Microsoft winsock header file nor the MinGW winsock header
- * file has already been included, do this now.
- */
-# if defined(HAVE_WINSOCK2_H) && defined(HAVE_WS2TCPIP_H)
-#  if !defined(__MINGW32__) && !defined(HAVE_WIN32_PLATFORM_SDK) && \
-    _MSC_VER -0 <= 1200 && _WIN32_WINNT -0 >= 0x0400
-    /*
-     * When using the MSVC 6 header files, including <winsock2.h> when
-     * _WIN32_WINNT >= 0x0400 results in a compilation error. Hence include
-     * <windows.h> instead, because <winsock2.h> is included from inside
-     * <windows.h> when _WIN32_WINNT >= 0x0400. The SDK version of <windows.h>
-     * does not include <winsock2.h> however.
-     */
-#   include <windows.h>
-#  else
-#   include <winsock2.h>
-#  endif
-#  include <ws2tcpip.h>
-# elif defined(HAVE_WINSOCK_H)
-#  include <winsock.h>
-# endif
-#endif
 
 #if defined(WIN32) && !defined(cygwin)
 typedef HANDLE netsnmp_pid_t;
@@ -67,10 +37,6 @@ typedef pid_t netsnmp_pid_t;
 #define NETSNMP_NO_SUCH_PROCESS -1
 #endif
 
-#if HAVE_NETINET_IN_H
-#include <netinet/in.h>		/* For definition of in_addr_t */
-#endif
-
 #include <net-snmp/library/oid.h>
 
 #ifdef __cplusplus
@@ -78,20 +44,16 @@ extern "C" {
 #endif
 
 #ifndef HAVE_SOCKLEN_T
+#ifdef WIN32
+typedef int socklen_t;
+#else
 typedef u_int socklen_t;
 #endif
-
-#ifndef HAVE_IN_ADDR_T
-  /*
-   * The type in_addr_t must match the type of sockaddr_in::sin_addr.
-   * For MSVC and MinGW32, this is u_long.
-   */
-typedef u_long in_addr_t;
 #endif
 
-#if !defined(HAVE_SSIZE_T) && !defined(_WIN64)
-#if defined(__INT_MAX__) && __INT_MAX__ == 2147483647
-typedef int ssize_t;
+#ifndef HAVE_SSIZE_T
+#if defined(_WIN64)
+typedef __int64 ssize_t;
 #else
 typedef long ssize_t;
 #endif
@@ -101,6 +63,16 @@ typedef long ssize_t;
 typedef unsigned long int nfds_t;
 #endif
 
+#ifdef HAVE_PCRE_H
+/*
+ * Abstract the pcre typedef such that not all *.c files have to include
+ * <pcre.h>.
+ */
+typedef struct {
+    void *regex_ptr;
+} netsnmp_regex_ptr;
+#endif
+ 
     /*
      *  For the initial release, this will just refer to the
      *  relevant UCD header files.
@@ -177,7 +149,7 @@ typedef struct snmp_pdu {
     long            version;
     /** Type of this PDU */	
     int             command;
-    /** Request id - note: not incremented on retries */
+    /** Request id - note: incremented for each retry */
     long            reqid;  
     /** Message id for V3 messages note: incremented for each retry */
     long            msgid;
@@ -197,6 +169,9 @@ typedef struct snmp_pdu {
     /** noAuthNoPriv, authNoPriv, authPriv */
     int             securityLevel;  
     int             msgParseModel;
+
+    /** smallest of max for transport, v3 msgMaxSize and local cfg. */
+    long            msgMaxSize;
 
     /**
      * Transport-specific opaque data.  This replaces the IP-centric address
@@ -268,13 +243,15 @@ typedef struct snmp_pdu {
 } netsnmp_pdu;
 
 
-/** @typedef struct snmp_session netsnmp_session
- * Typedefs the snmp_session struct intonetsnmp_session */
-        struct snmp_session;
+/**
+ * @typedef struct snmp_session netsnmp_session
+ * Typedefs the snmp_session struct into netsnmp_session.
+ */
 typedef struct snmp_session netsnmp_session;
 
-#define USM_AUTH_KU_LEN     32
-#define USM_PRIV_KU_LEN     32
+/** for openssl this should match up with EVP_MAX_MD_SIZE */
+#define USM_AUTH_KU_LEN     64
+#define USM_PRIV_KU_LEN     64
 
 typedef int        (*snmp_callback) (int, netsnmp_session *, int,
                                           netsnmp_pdu *, void *);
@@ -282,6 +259,30 @@ typedef int     (*netsnmp_callback) (int, netsnmp_session *, int,
                                           netsnmp_pdu *, void *);
 
 struct netsnmp_container_s;
+
+#ifndef NETSNMP_NO_TRAP_STATS
+    /*
+     * trap/inform statistics.
+     *
+     * all times are sysuptime
+     */
+typedef struct netsnmp_trap_stats_s {
+    u_long   sent_count;
+    u_long   sent_last_sent;
+
+    u_long   sent_fail_count;
+    u_long   sent_last_fail;
+
+    u_long   ack_count;
+    u_long   ack_last_rcvd;
+
+    u_long   sec_err_count;
+    u_long   sec_err_last;
+
+    u_long   timeouts;
+    u_long   sent_last_timeout;
+} netsnmp_trap_stats;
+#endif /* NETSNMP_NO_TRAP_STATS */
 
 /** @struct snmp_session
  * The snmp session structure.
@@ -303,7 +304,7 @@ struct snmp_session {
     /** name or address of default peer (may include transport specifier and/or port number) */
     char           *peername;
     /** UDP port number of peer. (NO LONGER USED - USE peername INSTEAD) */
-    u_short         remote_port;
+    u_short         remote_port NETSNMP_ATTRIBUTE_DEPRECATED;
     /** My Domain name or dotted IP address, 0 for default */
     char           *localname;
     /** My UDP port number, 0 for default, picked randomly */
@@ -395,6 +396,9 @@ struct snmp_session {
     int             securityLevel;  
     /** target param name */
     char           *paramName;
+#ifndef NETSNMP_NO_TRAP_STATS
+    netsnmp_trap_stats *trap_stats;
+#endif /* NETSNMP_NO_TRAP_STATS */
 
     /**
      * security module specific 

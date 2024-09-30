@@ -3,20 +3,20 @@
  */
 
 #include <net-snmp/net-snmp-config.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
@@ -107,11 +107,11 @@ var_ucdDemoPublic(struct variable *vp,
     static char     string[MYMAX + 1], *cp;
     int             i;
 
-    *write_method = 0;          /* assume it isnt writable for the time being */
+    *write_method = NULL;       /* assume it isnt writable for the time being */
     *var_len = sizeof(long_ret);        /* assume an integer and change later if not */
 
     if (header_generic(vp, name, length, exact, var_len, write_method))
-        return 0;
+        return NULL;
 
     /*
      * this is where we do the value assignments for the mib results. 
@@ -146,7 +146,7 @@ var_ucdDemoPublic(struct variable *vp,
         DEBUGMSGTL(("snmpd", "unknown sub-id %d in var_ucdDemoPublic\n",
                     vp->magic));
     }
-    return 0;
+    return NULL;
 }
 
 int

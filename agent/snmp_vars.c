@@ -41,6 +41,11 @@ PERFORMANCE OF THIS SOFTWARE.
  * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 
 /*
@@ -49,12 +54,6 @@ PERFORMANCE OF THIS SOFTWARE.
  * Linux additions taken from CMU to UCD stack by Jennifer Bray of Origin
  * (jbray@origin-at.co.uk) 1997
  */
-/*
- * Portions of this file are copyrighted by:
- * Copyright © 2003 Sun Microsystems, Inc. All rights reserved.
- * Use is subject to license terms specified in the COPYING file
- * distributed with the Net-SNMP package.
- */
 
 /*
  * XXXWWW merge todo: incl/excl range changes in differences between
@@ -62,13 +61,13 @@ PERFORMANCE OF THIS SOFTWARE.
  */
 
 #include <net-snmp/net-snmp-config.h>
-#if HAVE_SYS_PARAM_H
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 #include <sys/types.h>
@@ -76,60 +75,60 @@ PERFORMANCE OF THIS SOFTWARE.
 #include <fcntl.h>
 #include <errno.h>
 
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 # include <sys/socket.h>
 #endif
-#if HAVE_SYS_STREAM_H
+#ifdef HAVE_SYS_STREAM_H
 #   ifdef sysv5UnixWare7
 #      define _KMEMUSER 1 /* <sys/stream.h> needs this for queue_t */
 #   endif
 #include <sys/stream.h>
 #endif
-#if HAVE_SYS_SOCKETVAR_H
+#ifdef HAVE_SYS_SOCKETVAR_H
 # include <sys/socketvar.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_NETINET_IN_SYSTM_H
+#ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
 #endif
-#if HAVE_NETINET_IP_H
+#ifdef HAVE_NETINET_IP_H
 #include <netinet/ip.h>
 #endif
 #ifdef NETSNMP_ENABLE_IPV6
-#if HAVE_NETINET_IP6_H
+#ifdef HAVE_NETINET_IP6_H
 #include <netinet/ip6.h>
 #endif
 #endif
-#if HAVE_SYS_QUEUE_H
+#ifdef HAVE_SYS_QUEUE_H
 #include <sys/queue.h>
 #endif
-#if HAVE_NET_ROUTE_H
+#ifdef HAVE_NET_ROUTE_H
 #include <net/route.h>
 #endif
-#if HAVE_NETINET_IP_VAR_H
+#ifdef HAVE_NETINET_IP_VAR_H
 #include <netinet/ip_var.h>
 #endif
 #ifdef NETSNMP_ENABLE_IPV6
-#if HAVE_NETNETSNMP_ENABLE_IPV6_IP6_VAR_H
+#ifdef HAVE_NETNETSNMP_ENABLE_IPV6_IP6_VAR_H
 #include <netinet6/ip6_var.h>
 #endif
 #endif
-#if HAVE_NETINET_IN_PCB_H
+#ifdef HAVE_NETINET_IN_PCB_H
 #include <netinet/in_pcb.h>
 #endif
-#if HAVE_INET_MIB2_H
+#ifdef HAVE_INET_MIB2_H
 #include <inet/mib2.h>
 #endif
 
@@ -137,6 +136,7 @@ PERFORMANCE OF THIS SOFTWARE.
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/agent/mib_modules.h>
 #include <net-snmp/agent/agent_sysORTable.h>
+#include "agent_global_vars.h"
 #include "kernel.h"
 
 #include "mibgroup/struct.h"
@@ -163,21 +163,6 @@ static char     done_init_agent = 0;
 
 struct module_init_list *initlist = NULL;
 struct module_init_list *noinitlist = NULL;
-
-/*
- * mib clients are passed a pointer to a oid buffer.  Some mib clients
- * * (namely, those first noticed in mibII/vacm.c) modify this oid buffer
- * * before they determine if they really need to send results back out
- * * using it.  If the master agent determined that the client was not the
- * * right one to talk with, it will use the same oid buffer to pass to the
- * * rest of the clients, which may not longer be valid.  This should be
- * * fixed in all clients rather than the master.  However, its not a
- * * particularily easy bug to track down so this saves debugging time at
- * * the expense of a few memcpy's.
- */
-#define MIB_CLIENTS_ARE_EVIL 1
-
-extern netsnmp_subtree *subtrees;
 
 /*
  *      Each variable name is placed in the variable table, without the
@@ -236,6 +221,9 @@ u_char          return_buf[258];
 u_char          return_buf[256];        /* nee 64 */
 #endif
 
+static int
+_warn_if_all_disabled(int maj, int min, void *serverarg, void *clientarg);
+
 int             callback_master_num = -1;
 
 #ifdef NETSNMP_TRANSPORT_CALLBACK_DOMAIN
@@ -291,9 +279,7 @@ init_agent(const char *app)
     netsnmp_ds_set_boolean(NETSNMP_DS_LIBRARY_ID, 
 			   NETSNMP_DS_LIB_ALARM_DONT_USE_SIG, 1);
 
-#ifdef NETSNMP_CAN_USE_NLIST
     r = init_kmem("/dev/kmem") ? 0 : -EACCES;
-#endif
 
     setup_tree();
 
@@ -304,7 +290,13 @@ init_agent(const char *app)
 #endif
 
     _init_agent_callback_transport();
-    
+
+#ifndef NETSNMP_FEATURE_REMOVE_RUNTIME_DISABLE_VERSION
+    snmp_register_callback(SNMP_CALLBACK_LIBRARY,
+                           SNMP_CALLBACK_POST_READ_CONFIG,
+                           _warn_if_all_disabled, NULL);
+#endif /* NETSNMP_FEATURE_REMOVE_RUNTIME_DISABLE_VERSION */
+
     netsnmp_init_helpers();
     init_traps();
     netsnmp_container_init_list();
@@ -339,7 +331,7 @@ init_agent(const char *app)
     init_perl();
 #endif
 
-#if defined(NETSNMP_USE_OPENSSL) && defined(HAVE_LIBSSL)
+#if defined(NETSNMP_USE_OPENSSL) && defined(HAVE_LIBSSL) && NETSNMP_TRANSPORT_TLSBASE_DOMAIN
     /** init secname mapping */
     netsnmp_certs_agent_init();
 #endif
@@ -377,9 +369,7 @@ shutdown_agent(void) {
     clear_callback();
     shutdown_secmod();
     netsnmp_addrcache_destroy();
-#ifdef NETSNMP_CAN_USE_NLIST
     free_kmem();
-#endif
 
     done_init_agent = 0;
 }
@@ -458,5 +448,48 @@ should_init(const char *module_name)
      */
     return DO_INITIALIZE;
 }
+
+static int
+_warn_if_all_disabled(int maj, int min, void *serverarg, void *clientarg)
+{
+    const char * name = netsnmp_ds_get_string(NETSNMP_DS_LIBRARY_ID,
+                                              NETSNMP_DS_LIB_APPTYPE);
+    const int agent_mode =  netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID,
+                                                   NETSNMP_DS_AGENT_ROLE);
+    int enabled = 0;
+    if (NULL==name)
+        name = "snmpd";
+
+    if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                NETSNMP_DS_LIB_DISABLE_V3))
+        ++enabled;
+#ifndef NETSNMP_DISABLE_SNMPV2C
+    if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                NETSNMP_DS_LIB_DISABLE_V2c))
+        ++enabled;
+#endif /* NETSNMP_DISABLE_SNMPV2C */
+#ifndef NETSNMP_DISABLE_SNMPV1
+    if (!netsnmp_ds_get_boolean(NETSNMP_DS_LIBRARY_ID,
+                                NETSNMP_DS_LIB_DISABLE_V1))
+        ++enabled;
+#endif /* NETSNMP_DISABLE_SNMPV1 */
+
+    if (0 == enabled) {
+        if ((MASTER_AGENT == agent_mode) && (strcmp(name, "snmptrapd") != 0)) {
+            snmp_log(LOG_WARNING,
+                     "Warning: all protocol versions are runtime disabled.\n"
+                 "  It's unlikely this agent can serve any useful purpose in this state.\n"
+                     "  Check %s.conf file(s) for this agent.\n", name);
+        } else if (!strcmp(name, "snmptrapd") &&
+            !netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID,
+                                    NETSNMP_DS_APP_NO_AUTHORIZATION)) {
+            snmp_log(LOG_WARNING,
+                     "Warning: all protocol versions are runtime disabled.\n"
+                     "This receiver will *NOT* accept any incoming notifications.\n");
+        }
+    }
+    return SNMP_ERR_NOERROR;
+}
+
 /**  @} */
 

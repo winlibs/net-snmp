@@ -6,25 +6,35 @@
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 #include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/agent/snmp_agent.h>
+#include <net-snmp/agent/snmp_vars.h>
+#include "interface_private.h"
 
-netsnmp_feature_require(fd_event_manager)
-netsnmp_feature_require(delete_prefix_info)
-netsnmp_feature_require(create_prefix_info)
-netsnmp_feature_child_of(interface_arch_set_admin_status, interface_all)
+netsnmp_feature_require(fd_event_manager);
+netsnmp_feature_require(delete_prefix_info);
+netsnmp_feature_require(create_prefix_info);
+netsnmp_feature_child_of(interface_arch_set_admin_status, interface_all);
 
 #ifdef NETSNMP_FEATURE_REQUIRE_INTERFACE_ARCH_SET_ADMIN_STATUS
-netsnmp_feature_require(interface_ioctl_flags_set)
+netsnmp_feature_require(interface_ioctl_flags_set);
 #endif /* NETSNMP_FEATURE_REQUIRE_INTERFACE_ARCH_SET_ADMIN_STATUS */
+
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 
 #ifdef HAVE_PCI_LOOKUP_NAME
 #include <pci/pci.h>
 #include <setjmp.h>
+#ifndef PCI_NONRET
+#define PCI_NONRET
+#endif
 static struct pci_access *pci_access;
 
 /* Avoid letting libpci call exit(1) when no PCI bus is available. */
 static int do_longjmp =0;
 static jmp_buf err_buf;
-static void
+PCI_NONRET static void
 netsnmp_pci_error(char *msg, ...)
 {
     va_list args;
@@ -46,23 +56,23 @@ netsnmp_pci_error(char *msg, ...)
 #endif
 
 #ifdef HAVE_LINUX_ETHTOOL_H
+#ifdef HAVE_LINUX_ETHTOOL_NEEDS_U64
 #include <linux/types.h>
-#ifndef HAVE_PCI_LOOKUP_NAME
 typedef __u64 u64;         /* hack, so we may include kernel's ethtool.h */
 typedef __u32 u32;         /* ditto */
 typedef __u16 u16;         /* ditto */
 typedef __u8 u8;           /* ditto */
 #endif
-
 #include <linux/ethtool.h>
 #endif /* HAVE_LINUX_ETHTOOL_H */
 
 #include "mibII/mibII_common.h"
 #include "if-mib/ifTable/ifTable_constants.h"
+#include "ip-mib/data_access/ipaddress_ioctl.h"
 
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 
-#if HAVE_SYS_IOCTL_H
+#ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #else
 #error "linux should have sys/ioctl header"
@@ -113,14 +123,8 @@ netsnmp_linux_interface_get_if_speed_mii(int fd, const char *name,
 
 #define PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME_MS "/proc/sys/net/ipv%d/neigh/%s/retrans_time_ms"
 #define PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME    "/proc/sys/net/ipv%d/neigh/%s/retrans_time"
-static const char *proc_sys_retrans_time;
-static unsigned short retrans_time_factor = 1;
-
-
 #define PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME_MS "/proc/sys/net/ipv%d/neigh/%s/base_reachable_time_ms"
 #define PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME "/proc/sys/net/ipv%d/neigh/%s/base_reachable_time"
-static const char *proc_sys_basereachable_time;
-static unsigned short basereachable_time_ms = 0;
 #ifdef SUPPORT_PREFIX_FLAGS
 prefix_cbx *prefix_head_list = NULL;
 netsnmp_prefix_listen_info list_info;
@@ -130,46 +134,18 @@ netsnmp_prefix_listen_info list_info;
 int netsnmp_prefix_listen(void);
 #endif
 
-
-void
-netsnmp_arch_interface_init(void)
-{
-    /*
-     * Check which retransmit time interface is available
-     */
-    char proc_path[ 64+IF_NAMESIZE];
-    char proc_path2[64+IF_NAMESIZE];
-    struct stat st;
-
-    snprintf(proc_path,  sizeof(proc_path),
-             PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME_MS, 6, "default");
-    snprintf(proc_path2, sizeof(proc_path2),
-             PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME_MS, 4, "default");
-
-    if ((stat(proc_path, &st) == 0) || (stat(proc_path2, &st) == 0)) {
-        proc_sys_retrans_time = PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME_MS;
-    } else {
-        proc_sys_retrans_time = PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME;
-        retrans_time_factor = 10;
-    }
-
-    snprintf(proc_path,  sizeof(proc_path),  PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME_MS, 6, "default");
-    snprintf(proc_path2,  sizeof(proc_path),  PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME, 4, "default");
-
-    if ((stat(proc_path, &st) == 0) || (stat(proc_path2, &st) == 0)) {
-        proc_sys_basereachable_time = PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME_MS;
-        basereachable_time_ms = 1;
-    }
-    else {
-        proc_sys_basereachable_time = PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME;
-    }
-
-#ifdef SUPPORT_PREFIX_FLAGS
-    list_info.list_head = &prefix_head_list;
-    netsnmp_prefix_listen();
-#endif
-
 #ifdef HAVE_PCI_LOOKUP_NAME
+static void init_libpci(void)
+{
+    struct stat stbuf;
+
+    /*
+     * When snmpd is run inside an OpenVZ container or on a Raspberry Pi system
+     * /proc/bus/pci is not available.
+     */
+    if (stat("/proc/bus/pci", &stbuf) == 0)
+        return;
+
     pci_access = pci_alloc();
     if (!pci_access) {
 	snmp_log(LOG_ERR, "pcilib: pci_alloc failed\n");
@@ -187,7 +163,22 @@ netsnmp_arch_interface_init(void)
     else if (pci_access)
 	pci_init(pci_access);
     do_longjmp = 0;
+}
+#else
+static void init_libpci(void)
+{
+}
 #endif
+
+void
+netsnmp_arch_interface_init(void)
+{
+#ifdef SUPPORT_PREFIX_FLAGS
+    list_info.list_head = &prefix_head_list;
+    netsnmp_prefix_listen();
+#endif
+
+    init_libpci();
 }
 
 /*
@@ -298,17 +289,29 @@ _arch_interface_flags_v4_get(netsnmp_interface_entry *entry)
 {
     FILE           *fin;
     char            line[256];
+    struct          stat st;
+    unsigned short retrans_time_factor;
+
+    /*
+     * Check which retransmit time interface is available
+     */
+    snprintf(line, sizeof(line), PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME_MS, 4,
+             entry->name);
+    if (stat(line, &st) == 0) {
+        retrans_time_factor = 1;
+    } else {
+        snprintf(line, sizeof(line), PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME, 4,
+                 entry->name);
+        retrans_time_factor = 10;
+    }
 
     /*
      * get the retransmit time
      */
-    snprintf(line,sizeof(line), proc_sys_retrans_time, 4,
-             entry->name);
     if (!(fin = fopen(line, "r"))) {
         DEBUGMSGTL(("access:interface",
                     "Failed to open %s\n", line));
-    }
-    else {
+    } else {
         if (fgets(line, sizeof(line), fin)) {
             entry->retransmit_v4 = atoi(line) * retrans_time_factor;
             entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_V4_RETRANSMIT;
@@ -390,12 +393,26 @@ _arch_interface_flags_v6_get(netsnmp_interface_entry *entry)
 {
     FILE           *fin;
     char            line[256];
+    struct          stat st;
+    unsigned short retrans_time_factor;
+    unsigned short basereachable_time_ms;
 
+    /*
+     * Check which retransmit time interface is available
+     */
+    snprintf(line, sizeof(line), PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME_MS, 6,
+             entry->name);
+    if (stat(line, &st) == 0) {
+        retrans_time_factor = 1;
+    } else {
+        snprintf(line, sizeof(line), PROC_SYS_NET_IPVx_NEIGH_RETRANS_TIME, 6,
+                 entry->name);
+        retrans_time_factor = 10;
+    }
+	
     /*
      * get the retransmit time
      */
-    snprintf(line,sizeof(line), proc_sys_retrans_time, 6,
-             entry->name);
     if (!(fin = fopen(line, "r"))) {
         DEBUGMSGTL(("access:interface",
                     "Failed to open %s\n", line));
@@ -424,11 +441,24 @@ _arch_interface_flags_v6_get(netsnmp_interface_entry *entry)
         }
         fclose(fin);
     }
+	
+    /*
+     *  Check which base reachable time interface is available.
+     */
+
+    snprintf(line, sizeof(line), PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME_MS, 6,
+             entry->name);
+    if (stat(line, &st) == 0) {
+        basereachable_time_ms = 1;
+    } else {
+        snprintf(line, sizeof(line), PROC_SYS_NET_IPVx_BASE_REACHABLE_TIME, 6,
+                 entry->name);
+        basereachable_time_ms = 0;
+    }
 
     /*
      * get the reachable time
      */
-    snprintf(line, sizeof(line), proc_sys_basereachable_time, 6, entry->name);
     if (!(fin = fopen(line, "r"))) {
         DEBUGMSGTL(("access:interface",
                     "Failed to open %s\n", line));
@@ -461,7 +491,6 @@ _parse_stats(netsnmp_interface_entry *entry, char *stats, int expected)
      *  [               OUT                               ]
      *   byte pkts errs drop fifo colls carrier compressed
      */
-#ifdef SCNuMAX
     uintmax_t       rec_pkt, rec_oct, rec_err, rec_drop, rec_mcast;
     uintmax_t       snd_pkt, snd_oct, snd_err, snd_drop, coll;
     const char     *scan_line_2_2 =
@@ -473,14 +502,6 @@ _parse_stats(netsnmp_interface_entry *entry, char *stats, int expected)
         "%"   SCNuMAX " %"  SCNuMAX " %*" SCNuMAX " %*" SCNuMAX
         " %*" SCNuMAX " %"  SCNuMAX " %"  SCNuMAX " %*" SCNuMAX
         " %*" SCNuMAX " %"  SCNuMAX;
-#else
-    unsigned long   rec_pkt, rec_oct, rec_err, rec_drop, rec_mcast;
-    unsigned long   snd_pkt, snd_oct, snd_err, snd_drop, coll;
-    const char     *scan_line_2_2 =
-        "%lu %lu %lu %lu %*lu %*lu %*lu %lu %lu %lu %lu %lu %*lu %lu";
-    const char     *scan_line_2_0 =
-        "%lu %lu %*lu %*lu %*lu %lu %lu %*lu %*lu %lu";
-#endif
     static const char     *scan_line_to_use = NULL;
     int             scan_count;
 
@@ -520,10 +541,8 @@ _parse_stats(netsnmp_interface_entry *entry, char *stats, int expected)
              */
             entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_MCAST_PKTS;
             entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_HIGH_SPEED;
-#ifdef SCNuMAX   /* XXX - should be flag for 64-bit variables */
             entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_HIGH_BYTES;
             entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_HIGH_PACKETS;
-#endif
         }
     } else {
         scan_count = sscanf(stats, scan_line_to_use,
@@ -559,13 +578,11 @@ _parse_stats(netsnmp_interface_entry *entry, char *stats, int expected)
     entry->stats.imcast.low = rec_mcast & 0xffffffff;
     entry->stats.obytes.low = snd_oct & 0xffffffff;
     entry->stats.oucast.low = snd_pkt & 0xffffffff;
-#ifdef SCNuMAX   /* XXX - should be flag for 64-bit variables */
     entry->stats.ibytes.high = rec_oct >> 32;
     entry->stats.iall.high = rec_pkt >> 32;
     entry->stats.imcast.high = rec_mcast >> 32;
     entry->stats.obytes.high = snd_oct >> 32;
     entry->stats.oucast.high = snd_pkt >> 32;
-#endif
     entry->stats.ierrors   = rec_err;
     entry->stats.idiscards = rec_drop;
     entry->stats.oerrors   = snd_err;
@@ -585,7 +602,80 @@ _parse_stats(netsnmp_interface_entry *entry, char *stats, int expected)
     return 0;
 }
 
-/*
+/* Guess the IANA network interface type from the network interface name. */
+static int netsnmp_guess_interface_type(const netsnmp_interface_entry *entry)
+{
+    struct match_if {
+        int             mi_type;
+        const char     *mi_name;
+    };
+
+    static const struct match_if lmatch_if[] = {
+        {IANAIFTYPE_SOFTWARELOOPBACK, "lo"},
+        {IANAIFTYPE_ETHERNETCSMACD, "eth"},
+        {IANAIFTYPE_ETHERNETCSMACD, "vmnet"},
+        {IANAIFTYPE_ISO88025TOKENRING, "tr"},
+        {IANAIFTYPE_FASTETHER, "feth"},
+        {IANAIFTYPE_GIGABITETHERNET,"gig"},
+        {IANAIFTYPE_INFINIBAND,"ib"},
+        {IANAIFTYPE_PPP, "ppp"},
+        {IANAIFTYPE_SLIP, "sl"},
+        {IANAIFTYPE_TUNNEL, "sit"},
+        {IANAIFTYPE_BASICISDN, "ippp"},
+        {IANAIFTYPE_PROPVIRTUAL, "bond"}, /* Bonding driver find fastest slave */
+        {IANAIFTYPE_PROPVIRTUAL, "vad"},  /* ANS driver - ?speed? */
+        {0, NULL}                  /* end of list */
+    };
+
+    const struct match_if *pm;
+
+    for (pm = lmatch_if; pm->mi_name; pm++) {
+        const int len = strlen(pm->mi_name);
+
+        if (strncmp(entry->name, pm->mi_name, len) == 0)
+            return pm->mi_type;
+    }
+    return IANAIFTYPE_OTHER;
+}
+
+static void netsnmp_derive_interface_id(netsnmp_interface_entry *entry)
+{
+    /*
+     * interface identifier is specified based on physaddr and type
+     */
+    switch (entry->type) {
+    case IANAIFTYPE_ETHERNETCSMACD:
+    case IANAIFTYPE_ETHERNET3MBIT:
+    case IANAIFTYPE_FASTETHER:
+    case IANAIFTYPE_FASTETHERFX:
+    case IANAIFTYPE_GIGABITETHERNET:
+    case IANAIFTYPE_FDDI:
+    case IANAIFTYPE_ISO88025TOKENRING:
+        if (entry->paddr && entry->paddr_len != ETH_ALEN)
+            break;
+
+        entry->v6_if_id_len = entry->paddr_len + 2;
+        memcpy(entry->v6_if_id, entry->paddr, 3);
+        memcpy(entry->v6_if_id + 5, entry->paddr + 3, 3);
+        entry->v6_if_id[0] ^= 2;
+        entry->v6_if_id[3] = 0xFF;
+        entry->v6_if_id[4] = 0xFE;
+
+        entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_V6_IFID;
+        break;
+
+    case IANAIFTYPE_SOFTWARELOOPBACK:
+        entry->v6_if_id_len = 0;
+        entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_V6_IFID;
+        break;
+    }
+}
+
+/**
+ * Read network interface information from /proc/net/dev.
+ *
+ * @param container:  Container to store network information in.
+ * @param load_flags: One or more NETSNMP_ACCESS_INTERFACE_LOAD_* flags.
  *
  * @retval  0 success
  * @retval -1 no container specified
@@ -598,9 +688,10 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
 {
     FILE           *devin;
     char            line[256];
-    netsnmp_interface_entry *entry = NULL;
     static char     scan_expected = 0;
-    int             fd;
+    int             fd, rc;
+    int             interfaces = 0;
+    struct ifconf   ifc;
 #ifdef NETSNMP_ENABLE_IPV6
     netsnmp_container *addr_container;
 #endif
@@ -616,7 +707,7 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
     if (!(devin = fopen("/proc/net/dev", "r"))) {
         DEBUGMSGTL(("access:interface",
                     "Failed to load Interface Table (linux1)\n"));
-        NETSNMP_LOGONCE((LOG_ERR, "cannot open /proc/net/dev ...\n"));
+        snmp_log_perror("interface_linux: cannot open /proc/net/dev");
         return -2;
     }
 
@@ -625,9 +716,9 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
      */
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(fd < 0) {
-        snmp_log(LOG_ERR, "could not create socket\n");
-        fclose(devin);
-        return -2;
+        snmp_log_perror("interface_linux: could not create socket");
+        rc = -2;
+        goto close_devin;
     }
 
 #ifdef NETSNMP_ENABLE_IPV6
@@ -646,8 +737,8 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
      * to detect the position of individual fields directly,
      * but I suspect this is probably more trouble than it's worth.
      */
-    fgets(line, sizeof(line), devin);
-    fgets(line, sizeof(line), devin);
+    NETSNMP_IGNORE_RESULT(fgets(line, sizeof(line), devin));
+    NETSNMP_IGNORE_RESULT(fgets(line, sizeof(line), devin));
 
     if( 0 == scan_expected ) {
         if (strstr(line, "compressed")) {
@@ -661,19 +752,31 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
         }
     }
 
+    interfaces = netsnmp_access_ipaddress_ioctl_get_interface_count(fd, &ifc);
+    if (interfaces < 0) {
+        snmp_log(LOG_ERR,"get interface count failed\n");
+        rc = -2;
+        goto free_addr_container;
+    }
+    netsnmp_assert(NULL != ifc.ifc_buf);
+
+
     /*
      * The rest of the file provides the statistics for each interface.
      * Read in each line in turn, isolate the interface name
      *   and retrieve (or create) the corresponding data structure.
      */
     while (fgets(line, sizeof(line), devin)) {
+        netsnmp_interface_entry *entry = NULL;
         char           *stats, *ifstart = line;
         u_int           flags;
         oid             if_index;
+        size_t          len;
 
         flags = 0;
-        if (line[strlen(line) - 1] == '\n')
-            line[strlen(line) - 1] = '\0';
+        len = strlen(line);
+        if (len && line[len - 1] == '\n')
+            line[len - 1] = '\0';
 
         while (*ifstart && *ifstart == ' ')
             ifstart++;
@@ -698,7 +801,12 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
          */
         *stats++ = 0; /* null terminate name */
 
-        if_index = netsnmp_arch_interface_index_find(ifstart);
+	if (!netsnmp_access_interface_include(ifstart))
+            continue;
+
+        /* we may need to stop tracking ifaces if a max was set */
+	if (netsnmp_access_interface_max_reached(ifstart))
+            continue;
 
         /*
          * set address type flags.
@@ -706,10 +814,16 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
          * ip version is to look for ip addresses. If anyone
          * knows a better way, put it here!
          */
+        if_index = netsnmp_arch_interface_index_find(ifstart);
+        if (if_index == 0) {
+            DEBUGMSGTL(("access:interface", "network interface %s is gone",
+                        ifstart));
+            continue;
+        }
 #ifdef NETSNMP_ENABLE_IPV6
         _arch_interface_has_ipv6(if_index, &flags, addr_container);
 #endif
-        netsnmp_access_interface_ioctl_has_ipv4(fd, ifstart, 0, &flags);
+        netsnmp_access_interface_ioctl_has_ipv4(fd, ifstart, 0, &flags, &ifc);
 
         /*
          * do we only want one address type?
@@ -724,16 +838,13 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
             continue;
         }
 
-        entry = netsnmp_access_interface_entry_create(ifstart, 0);
+        entry = netsnmp_access_interface_entry_create(ifstart, if_index);
         if(NULL == entry) {
 #ifdef NETSNMP_ENABLE_IPV6
             netsnmp_access_ipaddress_container_free(addr_container, 0);
 #endif
-            netsnmp_access_interface_container_free(container,
-                                                    NETSNMP_ACCESS_INTERFACE_FREE_NOFLAGS);
-            fclose(devin);
-            close(fd);
-            return -3;
+            rc = -3;
+            goto free_ifc;
         }
         entry->ns_flags = flags; /* initial flags; we'll set more later */
 
@@ -752,72 +863,10 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
          * physaddr should have set type. make some guesses (based
          * on name) if not.
          */
-        if(0 == entry->type) {
-            typedef struct _match_if {
-               int             mi_type;
-               const char     *mi_name;
-            }              *pmatch_if, match_if;
-            
-            static match_if lmatch_if[] = {
-                {IANAIFTYPE_SOFTWARELOOPBACK, "lo"},
-                {IANAIFTYPE_ETHERNETCSMACD, "eth"},
-                {IANAIFTYPE_ETHERNETCSMACD, "vmnet"},
-                {IANAIFTYPE_ISO88025TOKENRING, "tr"},
-                {IANAIFTYPE_FASTETHER, "feth"},
-                {IANAIFTYPE_GIGABITETHERNET,"gig"},
-                {IANAIFTYPE_INFINIBAND,"ib"},
-                {IANAIFTYPE_PPP, "ppp"},
-                {IANAIFTYPE_SLIP, "sl"},
-                {IANAIFTYPE_TUNNEL, "sit"},
-                {IANAIFTYPE_BASICISDN, "ippp"},
-                {IANAIFTYPE_PROPVIRTUAL, "bond"}, /* Bonding driver find fastest slave */
-                {IANAIFTYPE_PROPVIRTUAL, "vad"},  /* ANS driver - ?speed? */
-                {0, NULL}                  /* end of list */
-            };
+        if (entry->type == 0)
+            entry->type = netsnmp_guess_interface_type(entry);
 
-            int             len;
-            register pmatch_if pm;
-            
-            for (pm = lmatch_if; pm->mi_name; pm++) {
-                len = strlen(pm->mi_name);
-                if (0 == strncmp(entry->name, pm->mi_name, len)) {
-                    entry->type = pm->mi_type;
-                    break;
-                }
-            }
-            if(NULL == pm->mi_name)
-                entry->type = IANAIFTYPE_OTHER;
-        }
-
-        /*
-         * interface identifier is specified based on physaddr and type
-         */
-        switch (entry->type) {
-        case IANAIFTYPE_ETHERNETCSMACD:
-        case IANAIFTYPE_ETHERNET3MBIT:
-        case IANAIFTYPE_FASTETHER:
-        case IANAIFTYPE_FASTETHERFX:
-        case IANAIFTYPE_GIGABITETHERNET:
-        case IANAIFTYPE_FDDI:
-        case IANAIFTYPE_ISO88025TOKENRING:
-            if (NULL != entry->paddr && ETH_ALEN != entry->paddr_len)
-                break;
-
-            entry->v6_if_id_len = entry->paddr_len + 2;
-            memcpy(entry->v6_if_id, entry->paddr, 3);
-            memcpy(entry->v6_if_id + 5, entry->paddr + 3, 3);
-            entry->v6_if_id[0] ^= 2;
-            entry->v6_if_id[3] = 0xFF;
-            entry->v6_if_id[4] = 0xFE;
-
-            entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_V6_IFID;
-            break;
-
-        case IANAIFTYPE_SOFTWARELOOPBACK:
-            entry->v6_if_id_len = 0;
-            entry->ns_flags |= NETSNMP_INTERFACE_FLAGS_HAS_V6_IFID;
-            break;
-        }
+        netsnmp_derive_interface_id(entry);
 
         if (IANAIFTYPE_ETHERNETCSMACD == entry->type) {
             unsigned long long speed;
@@ -836,13 +885,9 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
             } else
                 entry->speed = speed;
             entry->speed_high = speed / 1000000LL;
-        }
-#ifdef APPLIED_PATCH_836390   /* xxx-rks ifspeed fixes */
-        else if (IANAIFTYPE_PROPVIRTUAL == entry->type)
-            entry->speed = _get_bonded_if_speed(entry);
-#endif
-        else
+        } else {
             netsnmp_access_interface_entry_guess_speed(entry);
+        }
         
         netsnmp_access_interface_ioctl_flags_get(fd, entry);
 
@@ -893,14 +938,33 @@ netsnmp_arch_interface_container_load(netsnmp_container* container,
         /*
          * add to container
          */
-        CONTAINER_INSERT(container, entry);
+        if (CONTAINER_INSERT(container, entry) != 0) {
+            netsnmp_interface_entry *existing =
+                CONTAINER_FIND(container, entry);
+            NETSNMP_LOGONCE((LOG_WARNING,
+                             "Encountered interface with index %" NETSNMP_PRIz "u twice: %s <> %s\n",
+                             entry->index, existing ? existing->name : "(?)",
+                             entry->name));
+            netsnmp_access_interface_entry_free(entry);
+        }
     }
+
+    rc = 0;
+
+free_ifc:
+    free(ifc.ifc_buf);
+
+free_addr_container:
 #ifdef NETSNMP_ENABLE_IPV6
     netsnmp_access_ipaddress_container_free(addr_container, 0);
 #endif
-    fclose(devin);
+
     close(fd);
-    return 0;
+
+close_devin:
+    fclose(devin);
+
+    return rc;
 }
 
 #ifndef NETSNMP_FEATURE_REMOVE_INTERFACE_ARCH_SET_ADMIN_STATUS
@@ -924,43 +988,29 @@ netsnmp_arch_set_admin_status(netsnmp_interface_entry * entry,
 
 #ifdef HAVE_LINUX_ETHTOOL_H
 /**
- * Determines network interface speed from ETHTOOL_GSET
+ * Determines network interface speed from ETHTOOL_GLINKSETTINGS
+ * In case of failure revert to obsolete ETHTOOL_GSET
  */
 unsigned long long
 netsnmp_linux_interface_get_if_speed(int fd, const char *name,
             unsigned long long defaultspeed)
 {
     int ret;
-    struct ifreq ifr;
-    struct ethtool_cmd edata;
-    uint16_t speed_hi;
-    uint32_t speed;
+    struct netsnmp_linux_link_settings nlls;
+    uint32_t speed = -1;
 
-    memset(&ifr, 0, sizeof(ifr));
-    memset(&edata, 0, sizeof(edata));
-    edata.cmd = ETHTOOL_GSET;
-    
-    strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
-    ifr.ifr_data = (char *) &edata;
-    
-    ret = ioctl(fd, SIOCETHTOOL, &ifr);
-    if (ret == -1 || edata.speed == 0) {
+    ret = netsnmp_get_link_settings(&nlls, fd, name);
+    if (ret < 0) {
         DEBUGMSGTL(("mibII/interfaces", "ETHTOOL_GSET on %s failed (%d / %d)\n",
-                    ifr.ifr_name, ret, edata.speed));
-        return netsnmp_linux_interface_get_if_speed_mii(fd,name,defaultspeed);
+                    name, ret, speed));
+        return netsnmp_linux_interface_get_if_speed_mii(fd, name, defaultspeed);
     }
-
-#ifdef HAVE_STRUCT_ETHTOOL_CMD_SPEED_HI
-    speed_hi = edata.speed_hi;
-#else
-    speed_hi = 0;
-#endif
-    speed = speed_hi << 16 | edata.speed;
+    speed = nlls.speed;
     if (speed == 0xffff || speed == 0xffffffffUL /*SPEED_UNKNOWN*/)
         speed = defaultspeed;
     /* return in bps */
-    DEBUGMSGTL(("mibII/interfaces", "ETHTOOL_GSET on %s speed = %#x -> %d\n",
-                ifr.ifr_name, speed_hi << 16 | edata.speed, speed));
+    DEBUGMSGTL(("mibII/interfaces", "ETHTOOL_GSET on %s speed = %#x = %d\n",
+                name, speed, speed));
     return speed * 1000LL * 1000LL;
 }
 #endif
@@ -1064,7 +1114,7 @@ netsnmp_linux_interface_get_if_speed(int fd, const char *name,
 void netsnmp_prefix_process(int fd, void *data);
 
 /* Open netlink socket to watch new ipv6 addresses and prefixes. */
-int netsnmp_prefix_listen()
+int netsnmp_prefix_listen(void)
 {
     struct {
                 struct nlmsghdr n;
@@ -1240,9 +1290,9 @@ void netsnmp_prefix_process(int fd, void *data)
         iret = net_snmp_delete_prefix_info (list_info.list_head, in6pAddr);
         if(iret < 0)
             DEBUGMSGTL(("access:interface:prefix", "Unable to delete the prefix info\n"));
-            if(!iret)
-                DEBUGMSGTL(("access:interface:prefix", "Unable to find the node to delete\n"));
-            have_addr = 0;
+        if(!iret)
+            DEBUGMSGTL(("access:interface:prefix", "Unable to find the node to delete\n"));
+        have_addr = 0;
     }
 }
 #endif

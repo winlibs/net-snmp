@@ -37,6 +37,11 @@ SOFTWARE.
  * Copyright (C) 2007 Apple, Inc. All rights reserved.
  * Use is subject to license terms specified in the COPYING file
  * distributed with the Net-SNMP package.
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
  */
 /*
  * System dependent routines go here
@@ -47,24 +52,27 @@ SOFTWARE.
 #include <ctype.h>
 #include <errno.h>
 
-#if HAVE_IO_H
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
+#ifdef HAVE_IO_H
 #include <io.h>
 #endif
-#if HAVE_DIRECT_H
+#ifdef HAVE_DIRECT_H
 #include <direct.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
@@ -73,26 +81,26 @@ SOFTWARE.
 
 #include <sys/types.h>
 
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
-#if HAVE_NET_IF_H
+#ifdef HAVE_NET_IF_H
 #include <net/if.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
 
 
-#if HAVE_SYS_SOCKIO_H
+#ifdef HAVE_SYS_SOCKIO_H
 #include <sys/sockio.h>
 #endif
 
-#if HAVE_SYS_IOCTL_H
+#ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif
 
@@ -100,35 +108,36 @@ SOFTWARE.
 #include <nlist.h>
 #endif
 
-#if HAVE_SYS_FILE_H
+#ifdef HAVE_SYS_FILE_H
 #include <sys/file.h>
 #endif
 
-#if HAVE_KSTAT_H
+#ifdef HAVE_KSTAT_H
 #include <kstat.h>
 #endif
 
-#if HAVE_SYS_PARAM_H
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #endif
-#if HAVE_SYS_SYSCTL_H
+#ifdef HAVE_SYS_SYSCTL_H
 #include <sys/sysctl.h>
 #endif
 
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 
-#if HAVE_DMALLOC_H
-#include <dmalloc.h>
+#ifdef WIN32
+#include <wchar.h>   /* wcsncmp() */
+#include <winperf.h> /* PERF_DATA_BLOCK */
 #endif
 
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
 #endif
-#if HAVE_FCNTL_H
+#ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
 
@@ -136,34 +145,38 @@ SOFTWARE.
 #include <sys/pstat.h>
 #endif
 
-#if HAVE_SYS_UTSNAME_H
+#ifdef HAVE_SYS_UTSNAME_H
 #include <sys/utsname.h>
 #endif
 
-#if HAVE_SYS_SYSTEMCFG_H
+#ifdef HAVE_SYS_SYSTEMCFG_H
 #include <sys/systemcfg.h>
 #endif
 
-#if HAVE_SYS_SYSTEMINFO_H
+#ifdef HAVE_SYS_SYSTEMINFO_H
 #include <sys/systeminfo.h>
 #endif
 
-#if defined(darwin9)
+#ifdef HAVE_CRT_EXTERNS_H
 #include <crt_externs.h>        /* for _NSGetArgv() */
 #endif
 
-#if HAVE_PWD_H
+#ifdef HAVE_MACH_O_DYLD_H
+#include <mach-o/dyld.h>
+#endif
+
+#ifdef HAVE_PWD_H
 #include <pwd.h>
 #endif
-#if HAVE_GRP_H
+#ifdef HAVE_GRP_H
 #include <grp.h>
 #endif
 
-#if HAVE_LIMITS_H
+#ifdef HAVE_LIMITS_H
 #include <limits.h>
 #endif
 
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
@@ -189,10 +202,10 @@ SOFTWARE.
 /* NetSNMP and DNSSEC-Tools both define FREE. We'll not use either here. */
 #undef FREE
 
-netsnmp_feature_child_of(system_all, libnetsnmp)
+netsnmp_feature_child_of(system_all, libnetsnmp);
 
-netsnmp_feature_child_of(user_information, system_all)
-netsnmp_feature_child_of(calculate_sectime_diff, system_all)
+netsnmp_feature_child_of(user_information, system_all);
+netsnmp_feature_child_of(calculate_sectime_diff, system_all);
 
 #ifndef IFF_LOOPBACK
 #	define IFF_LOOPBACK 0
@@ -212,26 +225,33 @@ netsnmp_feature_child_of(calculate_sectime_diff, system_all)
 static void
 _daemon_prep(int stderr_log)
 {
+    int fd;
+
     /* Avoid keeping any directory in use. */
-    chdir("/");
+    NETSNMP_IGNORE_RESULT(chdir("/"));
 
     if (stderr_log)
         return;
 
+    fd = open("/dev/null", O_RDWR);
+    
     /*
      * Close inherited file descriptors to avoid
      * keeping unnecessary references.
      */
-    close(0);
-    close(1);
-    close(2);
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
 
     /*
      * Redirect std{in,out,err} to /dev/null, just in case.
      */
-    open("/dev/null", O_RDWR);
-    dup(0);
-    dup(0);
+    if (fd >= 0) {
+        dup2(fd, STDIN_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        dup2(fd, STDERR_FILENO);
+        close(fd);
+    }
 }
 #endif
 
@@ -262,8 +282,8 @@ netsnmp_daemonize(int quit_immediately, int stderr_log)
 {
     int i = 0;
     DEBUGMSGT(("daemonize","deamonizing...\n"));
-#if HAVE_FORK
-#if defined(darwin9)
+#ifdef HAVE_FORK
+#ifdef HAVE__NSGETEXECUTABLEPATH
      char            path [PATH_MAX] = "";
      uint32_t        size = sizeof (path);
 
@@ -283,7 +303,11 @@ netsnmp_daemonize(int quit_immediately, int stderr_log)
      * Fork to return control to the invoking process and to
      * guarantee that we aren't a process group leader.
      */
+#ifdef HAVE_FORKALL
+    i = forkall();
+#else
     i = fork();
+#endif
     if (i != 0) {
         /* Parent. */
         DEBUGMSGT(("daemonize","first fork returned %d.\n", i));
@@ -305,7 +329,12 @@ netsnmp_daemonize(int quit_immediately, int stderr_log)
         /*
          * Fork to let the process/session group leader exit.
          */
-        if ((i = fork()) != 0) {
+#ifdef HAVE_FORKALL
+	i = forkall();
+#else
+	i = fork();
+#endif
+        if (i != 0) {
             DEBUGMSGT(("daemonize","second fork returned %d.\n", i));
             if(i == -1) {
                 snmp_log(LOG_ERR,"second fork failed (errno %d) in "
@@ -320,7 +349,7 @@ netsnmp_daemonize(int quit_immediately, int stderr_log)
             
             DEBUGMSGT(("daemonize","child continuing\n"));
 
-#if ! defined(darwin9)
+#if !defined(HAVE__NSGETARGV)
             _daemon_prep(stderr_log);
 #else
              /*
@@ -613,7 +642,7 @@ get_boottime(void)
 #if defined(hpux10) || defined(hpux11)
     pstat_getstatic(&pst_buf, sizeof(struct pst_static), 1, 0);
     boottime_csecs = pst_buf.boot_time * 100;
-#elif NETSNMP_CAN_USE_SYSCTL
+#elif defined(NETSNMP_CAN_USE_SYSCTL)
     mib[0] = CTL_KERN;
     mib[1] = KERN_BOOTTIME;
 
@@ -676,11 +705,12 @@ get_uptime(void)
     u_long          lbolt = 0;
 
     if (ksc) {
-        ks = kstat_lookup(ksc, "unix", -1, "system_misc");
+        ks = kstat_lookup(ksc, NETSNMP_REMOVE_CONST(char *, "unix"), -1,
+                          NETSNMP_REMOVE_CONST(char *, "system_misc"));
         if (ks) {
             kid = kstat_read(ksc, ks, NULL);
             if (kid != -1) {
-                named = kstat_data_lookup(ks, "lbolt");
+                named = kstat_data_lookup(ks, NETSNMP_REMOVE_CONST(char *, "lbolt"));
                 if (named) {
 #ifdef KSTAT_DATA_UINT32
                     lbolt = named->value.ui32;
@@ -741,7 +771,7 @@ netsnmp_validator_context(void)
 int
 netsnmp_gethostbyname_v4(const char* name, in_addr_t *addr_out)
 {
-#if HAVE_GETADDRINFO
+#ifdef HAVE_GETADDRINFO
     struct addrinfo *addrs = NULL;
     struct addrinfo hint;
     int             err;
@@ -768,7 +798,7 @@ netsnmp_gethostbyname_v4(const char* name, in_addr_t *addr_out)
     }
     return 0;
 
-#elif HAVE_GETHOSTBYNAME
+#elif defined(HAVE_GETHOSTBYNAME)
     struct hostent *hp = NULL;
 
     hp = netsnmp_gethostbyname(name);
@@ -787,7 +817,7 @@ netsnmp_gethostbyname_v4(const char* name, in_addr_t *addr_out)
     }
     return 0;
 
-#elif HAVE_GETIPNODEBYNAME
+#elif defined(HAVE_GETIPNODEBYNAME)
     struct hostent *hp = NULL;
     int             err;
 
@@ -811,7 +841,7 @@ int
 netsnmp_getaddrinfo(const char *name, const char *service,
                     const struct addrinfo *hints, struct addrinfo **res)
 {
-#if HAVE_GETADDRINFO
+#ifdef HAVE_GETADDRINFO
     struct addrinfo *addrs = NULL;
     struct addrinfo hint;
     int             err;
@@ -829,7 +859,11 @@ netsnmp_getaddrinfo(const char *name, const char *service,
 	DEBUGMSG(("dns:getaddrinfo", ":\"%s\"", service));
 
     if (hints)
-	DEBUGMSG(("dns:getaddrinfo", " with hint ({ ... })"));
+	DEBUGMSG(("dns:getaddrinfo",
+                  " with hints ({.ai_flags = %#x, .ai_family = %s})",
+                  hints->ai_flags, hints->ai_family == 0 ? "0" :
+                  hints->ai_family == AF_INET ? "AF_INET" :
+                  hints->ai_family == AF_INET6 ? "AF_INET6" : "?"));
     else
 	DEBUGMSG(("dns:getaddrinfo", " with no hint"));
 
@@ -876,10 +910,34 @@ netsnmp_getaddrinfo(const char *name, const char *service,
 
 #endif /* DNSSEC_LOCAL_VALIDATION */
     *res = addrs;
-    if ((0 == err) && addrs && addrs->ai_addr) {
-        DEBUGMSGTL(("dns:getaddrinfo", "answer { AF_INET, %s:%hu }\n",
-                    inet_ntoa(((struct sockaddr_in*)addrs->ai_addr)->sin_addr),
-                    ntohs(((struct sockaddr_in*)addrs->ai_addr)->sin_port)));
+    DEBUGIF("dns:getaddrinfo") {
+        if (err == 0 && addrs && addrs->ai_addr) {
+            const char *fam = "?";
+            char dst[64] = "?";
+            uint16_t port = 0;
+
+            switch (addrs->ai_addr->sa_family) {
+            case AF_INET: {
+                struct sockaddr_in *sin = (struct sockaddr_in *)addrs->ai_addr;
+
+                fam = "AF_INET";
+                inet_ntop(AF_INET, &sin->sin_addr, dst, sizeof(dst));
+                port = ntohs(sin->sin_port);
+                break;
+            }
+            case AF_INET6: {
+                struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)
+                    addrs->ai_addr;
+
+                fam = "AF_INET6";
+                inet_ntop(AF_INET6, &sin6->sin6_addr, dst, sizeof(dst));
+                port = ntohs(sin6->sin6_port);
+                break;
+            }
+            }
+            DEBUGMSGTL(("dns:getaddrinfo", "answer { %s, %s:%hu }\n", fam, dst,
+                        port));
+        }
     }
     return err;
 #else
@@ -891,7 +949,7 @@ netsnmp_getaddrinfo(const char *name, const char *service,
 struct hostent *
 netsnmp_gethostbyname(const char *name)
 {
-#if HAVE_GETHOSTBYNAME
+#ifdef HAVE_GETHOSTBYNAME
 #ifdef DNSSEC_LOCAL_VALIDATION
     val_status_t val_status;
 #endif
@@ -924,9 +982,18 @@ netsnmp_gethostbyname(const char *name)
     if (hp == NULL) {
         DEBUGMSGTL(("dns:gethostbyname",
                     "couldn't resolve %s\n", name));
-    } else if (hp->h_addrtype != AF_INET) {
+    } else if (hp->h_addrtype != AF_INET
+#ifdef AF_INET6
+               && hp->h_addrtype != AF_INET6
+#endif
+        ) {
+#ifdef AF_INET6
+        DEBUGMSGTL(("dns:gethostbyname",
+                    "warning: response for %s not AF_INET/AF_INET6!\n", name));
+#else
         DEBUGMSGTL(("dns:gethostbyname",
                     "warning: response for %s not AF_INET!\n", name));
+#endif
     } else {
         DEBUGMSGTL(("dns:gethostbyname",
                     "%s resolved okay\n", name));
@@ -954,7 +1021,7 @@ netsnmp_gethostbyname(const char *name)
 struct hostent *
 netsnmp_gethostbyaddr(const void *addr, socklen_t len, int type)
 {
-#if HAVE_GETHOSTBYADDR
+#ifdef HAVE_GETHOSTBYADDR
     struct hostent *hp = NULL;
     char buf[64];
 
@@ -999,7 +1066,7 @@ netsnmp_gethostbyaddr(const void *addr, socklen_t len, int type)
 
 /*******************************************************************/
 
-#ifndef HAVE_STRNCASECMP
+#if !defined(HAVE_STRNCASECMP) && !defined(strncasecmp)
 
 /*
  * test for NULL pointers before and NULL characters after
@@ -1048,7 +1115,7 @@ strcasecmp(const char *s1, const char *s2)
     return strncasecmp(s1, s2, 1000000);
 }
 
-#endif                          /* HAVE_STRNCASECMP */
+#endif                /* !defined(HAVE_STRNCASECMP) && !defined(strncasecmp) */
 
 
 #ifndef HAVE_STRDUP
@@ -1089,7 +1156,7 @@ setenv(const char *name, const char *value, int overwrite)
 }
 #endif                          /* HAVE_SETENV */
 
-netsnmp_feature_child_of(calculate_time_diff, netsnmp_unused)
+netsnmp_feature_child_of(calculate_time_diff, netsnmp_unused);
 #ifndef NETSNMP_FEATURE_REMOVE_CALCULATE_TIME_DIFF
 /**
  * Compute (*now - *then) in centiseconds.
@@ -1112,7 +1179,7 @@ calculate_sectime_diff(const struct timeval *now, const struct timeval *then)
     struct timeval  diff;
 
     NETSNMP_TIMERSUB(now, then, &diff);
-    return diff.tv_sec + (diff.tv_usec >= 500000L);
+    return (u_int)(diff.tv_sec + (diff.tv_usec >= 500000L));
 }
 #endif /* NETSNMP_FEATURE_REMOVE_CALCULATE_SECTIME_DIFF */
 
@@ -1317,7 +1384,7 @@ int
 netsnmp_os_prematch(const char *ospmname,
                     const char *ospmrelprefix)
 {
-#if HAVE_SYS_UTSNAME_H
+#ifdef HAVE_SYS_UTSNAME_H
   static int printOSonce = 1;
   struct utsname utsbuf;
   if ( 0 > uname(&utsbuf))
@@ -1370,7 +1437,7 @@ netsnmp_os_kernel_width(void)
 #endif
 }
 
-netsnmp_feature_child_of(str_to_uid, user_information)
+netsnmp_feature_child_of(str_to_uid, user_information);
 #ifndef NETSNMP_FEATURE_REMOVE_STR_TO_UID
 /**
  * Convert a user name or number into numeric form.
@@ -1383,14 +1450,14 @@ netsnmp_feature_child_of(str_to_uid, user_information)
  */
 int netsnmp_str_to_uid(const char *useroruid) {
     int uid;
-#if HAVE_GETPWNAM && HAVE_PWD_H
+#if defined(HAVE_GETPWNAM) && defined(HAVE_PWD_H)
     struct passwd *pwd;
 #endif
 
     uid = atoi(useroruid);
 
     if (uid == 0) {
-#if HAVE_GETPWNAM && HAVE_PWD_H
+#if defined(HAVE_GETPWNAM) && defined(HAVE_PWD_H)
         pwd = getpwnam(useroruid);
         uid = pwd ? pwd->pw_uid : 0;
         endpwent();
@@ -1403,7 +1470,7 @@ int netsnmp_str_to_uid(const char *useroruid) {
 }
 #endif /* NETSNMP_FEATURE_REMOVE_STR_TO_UID */
 
-netsnmp_feature_child_of(str_to_gid, user_information)
+netsnmp_feature_child_of(str_to_gid, user_information);
 #ifndef NETSNMP_FEATURE_REMOVE_STR_TO_GID
 /**
  * Convert a group name or number into numeric form.
@@ -1421,7 +1488,7 @@ int netsnmp_str_to_gid(const char *grouporgid)
     gid = atoi(grouporgid);
 
     if (gid == 0) {
-#if HAVE_GETGRNAM && HAVE_GRP_H
+#if defined(HAVE_GETGRNAM) && defined(HAVE_GRP_H)
         struct group  *grp;
 
         grp = getgrnam(grouporgid);

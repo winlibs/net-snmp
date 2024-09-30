@@ -1,99 +1,99 @@
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_FCNTL_H
+#ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
 #include <signal.h>
-#if HAVE_MACHINE_PARAM_H
+#ifdef HAVE_MACHINE_PARAM_H
 #include <machine/param.h>
 #endif
-#if HAVE_SYS_PARAM_H
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #endif
-#if HAVE_SYS_VMMETER_H
+#ifdef HAVE_SYS_VMMETER_H
 #if !(defined(bsdi2) || defined(netbsd1))
 #include <sys/vmmeter.h>
 #endif
 #endif
-#if HAVE_SYS_CONF_H
+#ifdef HAVE_SYS_CONF_H
 #include <sys/conf.h>
 #endif
-#if HAVE_ASM_PAGE_H
+#ifdef HAVE_ASM_PAGE_H
 #include <asm/page.h>
 #endif
-#if HAVE_SYS_SWAP_H
+#ifdef HAVE_SYS_SWAP_H
 #include <sys/swap.h>
 #endif
-#if HAVE_SYS_FS_H
+#ifdef HAVE_SYS_FS_H
 #include <sys/fs.h>
 #else
-#if HAVE_UFS_FS_H
+#ifdef HAVE_UFS_FS_H
 #include <ufs/fs.h>
 #else
-#if HAVE_UFS_UFS_DINODE_H
+#ifdef HAVE_UFS_UFS_DINODE_H
 #include <ufs/ufs/dinode.h>
 #endif
-#if HAVE_UFS_FFS_FS_H
+#ifdef HAVE_UFS_FFS_FS_H
 #include <ufs/ffs/fs.h>
 #endif
 #endif
 #endif
-#if HAVE_MTAB_H
+#ifdef HAVE_MTAB_H
 #include <mtab.h>
 #endif
 #include <sys/stat.h>
 #include <errno.h>
-#if HAVE_FSTAB_H
+#ifdef HAVE_FSTAB_H
 #include <fstab.h>
 #endif
-#if HAVE_SYS_STATFS_H
+#ifdef HAVE_SYS_STATFS_H
 #include <sys/statfs.h>
 #endif
-#if HAVE_SYS_STATVFS_H
+#ifdef HAVE_SYS_STATVFS_H
 #include <sys/statvfs.h>
 #endif
-#if HAVE_SYS_VFS_H
+#ifdef HAVE_SYS_VFS_H
 #include <sys/vfs.h>
 #endif
 #if (!defined(HAVE_STATVFS)) && defined(HAVE_STATFS)
-#if HAVE_SYS_MOUNT_H
+#ifdef HAVE_SYS_MOUNT_H
 #include <sys/mount.h>
 #endif
-#if HAVE_SYS_SYSCTL_H
+#ifdef HAVE_SYS_SYSCTL_H
 #include <sys/sysctl.h>
 #endif
 #define statvfs statfs
 #endif
-#if HAVE_VM_VM_H
+#ifdef HAVE_VM_VM_H
 #include <vm/vm.h>
 #endif
-#if HAVE_VM_SWAP_PAGER_H
+#ifdef HAVE_VM_SWAP_PAGER_H
 #include <vm/swap_pager.h>
 #endif
-#if HAVE_SYS_FIXPOINT_H
+#ifdef HAVE_SYS_FIXPOINT_H
 #include <sys/fixpoint.h>
 #endif
-#if HAVE_MALLOC_H
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
 #include <ctype.h>
@@ -106,24 +106,13 @@
 
 #include "struct.h"
 #include "extensible.h"
+#include "pass.h"
 #include "mibgroup/util_funcs.h"
 #include "utilities/execute.h"
 #include "util_funcs/header_simple_table.h"
 
-netsnmp_feature_require(get_exten_instance)
-netsnmp_feature_require(parse_miboid)
-
-extern struct myproc *procwatch;        /* moved to proc.c */
-extern int      numprocs;       /* ditto */
-extern struct extensible *extens;       /* In exec.c */
-extern struct extensible *relocs;       /* In exec.c */
-extern int      numextens;      /* ditto */
-extern int      numrelocs;      /* ditto */
-extern struct extensible *passthrus;    /* In pass.c */
-extern int      numpassthrus;   /* ditto */
-extern netsnmp_subtree *subtrees;
-extern struct variable2 extensible_relocatable_variables[];
-extern struct variable2 extensible_passthru_variables[];
+netsnmp_feature_require(get_exten_instance);
+netsnmp_feature_require(parse_miboid);
 
 /*
  * the relocatable extensible commands variables 
@@ -193,8 +182,6 @@ init_extensible(void)
                            extensible_unregister, NULL);
 }
 
-extern int pass_compare(const void *a, const void *b);
-
 void
 extensible_parse_config(const char *token, char *cptr)
 {
@@ -262,7 +249,9 @@ extensible_parse_config(const char *token, char *cptr)
         for (tcptr = cptr; *tcptr != 0 && *tcptr != '#'; tcptr++)
             if (*tcptr == ';' && ptmp->type == EXECPROC)
                 break;
-        sprintf(ptmp->command, "%.*s", (int) (tcptr - cptr), cptr);
+        free(ptmp->command);
+        if (asprintf(&ptmp->command, "%.*s", (int) (tcptr - cptr), cptr) < 0)
+            ptmp->command = NULL;
     }
 #ifdef NETSNMP_EXECFIXCMD
     sprintf(ptmp->fixcmd, NETSNMP_EXECFIXCMD, ptmp->name);
@@ -291,7 +280,7 @@ extensible_parse_config(const char *token, char *cptr)
         if (etmp == NULL)
             return;                 /* XXX memory alloc error */
         for (i = 0, ptmp = *pp;
-             i < scount && ptmp != 0; i++, ptmp = ptmp->next)
+             i < scount && ptmp != NULL; i++, ptmp = ptmp->next)
             etmp[i] = ptmp;
         qsort(etmp, scount, sizeof(struct extensible *),
               pass_compare);
@@ -429,7 +418,7 @@ var_extensible_shell(struct variable * vp,
                      size_t * var_len, WriteMethod ** write_method)
 {
 
-    static struct extensible *exten = 0;
+    static struct extensible *exten = NULL;
     static long     long_ret;
     int len;
 
@@ -469,7 +458,7 @@ var_extensible_shell(struct variable * vp,
                                                   exten->output, &len);
 	    }
             *var_len = strlen(exten->output);
-            if (exten->output[*var_len - 1] == '\n')
+            if (*var_len && exten->output[*var_len - 1] == '\n')
                 exten->output[--(*var_len)] = '\0';
             return ((u_char *) (exten->output));
         case ERRORFIX:
@@ -507,13 +496,14 @@ fixExecError(int action,
         }
         tmp = *((long *) var_val);
         if ((tmp == 1) && (action == COMMIT) && (exten->fixcmd[0] != 0)) {
-            strlcpy(ex.command, exten->fixcmd, sizeof(ex.command));
+            ex.command = strdup(exten->fixcmd);
             if ((fd = get_exec_output(&ex)) != -1) {
                 file = fdopen(fd, "r");
                 while (fgets(ex.output, sizeof(ex.output), file) != NULL);
                 fclose(file);
                 wait_on_exec(&ex);
             }
+            free(ex.command);
         }
         return SNMP_ERR_NOERROR;
     }
@@ -530,7 +520,7 @@ var_extensible_relocatable(struct variable *vp,
 
     int             i;
     int             len;
-    struct extensible *exten = 0;
+    struct extensible *exten = NULL;
     static long     long_ret;
     static char     errmsg[STRMAX];
     char            *cp, *cp1;
@@ -623,7 +613,7 @@ var_extensible_relocatable(struct variable *vp,
             *cp = 0;
         strlcpy(errmsg, cp1, sizeof(errmsg));
         *var_len = strlen(errmsg);
-        if (errmsg[*var_len - 1] == '\n')
+        if (*var_len && errmsg[*var_len - 1] == '\n')
             errmsg[--(*var_len)] = '\0';
         return ((u_char *) (errmsg));
     case ERRORFIX:
@@ -643,7 +633,7 @@ find_extensible(netsnmp_subtree *tp, oid *tname, size_t tnamelen, int exact)
 {
     size_t          tmp;
     int             i;
-    struct extensible *exten = 0;
+    struct extensible *exten = NULL;
     struct variable myvp;
     oid             name[MAX_OID_LEN];
     static netsnmp_subtree mysubtree[2] =

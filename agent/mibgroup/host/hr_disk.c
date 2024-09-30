@@ -16,55 +16,58 @@
 #include <net-snmp/net-snmp-config.h>
 #include "host_res.h"
 #include "hr_disk.h"
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
 
 #include <fcntl.h>
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_KVM_H
+#ifdef HAVE_KVM_H
 #include <kvm.h>
 #endif
-#if HAVE_DIRENT_H
+#ifdef HAVE_DIRENT_H
 #include <dirent.h>
 #else
 # define dirent direct
-# if HAVE_SYS_NDIR_H
+# ifdef HAVE_SYS_NDIR_H
 #  include <sys/ndir.h>
 # endif
-# if HAVE_SYS_DIR_H
+# ifdef HAVE_SYS_DIR_H
 #  include <sys/dir.h>
 # endif
-# if HAVE_NDIR_H
+# ifdef HAVE_NDIR_H
 #  include <ndir.h>
 # endif
 #endif
-#if HAVE_SYS_IOCTL_H
+#ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif
 
-#if HAVE_SYS_DKIO_H
+#ifdef HAVE_SYS_DKIO_H
 #include <sys/dkio.h>
 #endif
-#if HAVE_SYS_DISKIO_H           /* HP-UX only ? */
+#ifdef HAVE_SYS_DISKIO_H           /* HP-UX only ? */
 #include <sys/diskio.h>
 #endif
-#if HAVE_LINUX_HDREG_H
+#ifdef HAVE_LINUX_HDREG_H
 #include <linux/hdreg.h>
 #endif
-#if HAVE_SYS_DISKLABEL_H
+#ifdef HAVE_SYS_DISKLABEL_H
 #define DKTYPENAMES
 #include <sys/disklabel.h>
+#ifndef dragonfly
+#include <sys/disk.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#endif
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
@@ -75,8 +78,11 @@
 #include <regex.h>
 #endif
 
-#if HAVE_LIMITS_H
+#ifdef HAVE_LIMITS_H
 #include <limits.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
 #endif
 
 #ifdef darwin
@@ -130,9 +136,6 @@
 	 *
 	 *********************/
 
-void            Init_HR_Disk(void);
-int             Get_Next_HR_Disk(void);
-int             Get_Next_HR_Disk_Partition(char *, size_t, int);
 #if !(defined(aix4) || defined(aix5) || defined(aix6) || defined(aix7))
 static void     Add_HR_Disk_entry(const char *, int, int, int, int,
                                   const char *, int, int);
@@ -176,7 +179,7 @@ static int      HRD_savedCtrl_type;
 static struct hd_driveid HRD_info;
 #endif
 
-#ifdef DIOCGDINFO
+#if defined(DIOCGDINFO) || defined(DIOCGMEDIASIZE)
 static struct disklabel HRD_info;
 #endif
 
@@ -271,6 +274,9 @@ init_hr_disk(void)
 #elif defined(freebsd2)
     Add_HR_Disk_entry("/dev/wd%d%c", -1, -1, 0, 3, "/dev/wd%d", 'a', 'h');
     Add_HR_Disk_entry("/dev/sd%d%c", -1, -1, 0, 3, "/dev/sd%d", 'a', 'h');
+#elif defined(netbsd6)
+    Add_HR_Disk_entry("/dev/wd%d%c", -1, -1, 0, 3, "/dev/rwd%da", 'a', 'h');
+    Add_HR_Disk_entry("/dev/sd%d%c", -1, -1, 0, 3, "/dev/rsd%da", 'a', 'h');
 #elif defined(netbsd1)
     Add_HR_Disk_entry("/dev/wd%d%c", -1, -1, 0, 3, "/dev/wd%dc", 'a', 'h');
     Add_HR_Disk_entry("/dev/sd%d%c", -1, -1, 0, 3, "/dev/sd%dc", 'a', 'h');
@@ -407,7 +413,7 @@ parse_disk_config(const char *token, char *cptr)
                  *p != '\0' && *p != '?' && *p != '*' && *p != '['; p++);
             c = *p;
             *p = '\0';
-            d_str = (char *) malloc(strlen(name) + 1);
+            d_str = strdup(name);
             if (!d_str) {
                 SNMP_FREE(d_new);
                 SNMP_FREE(d_str);
@@ -416,7 +422,6 @@ parse_disk_config(const char *token, char *cptr)
                 config_perror("Out of memory");
                 return;
             }
-            strcpy(d_str, name);
             *p = c;
             di_curr->item_type = ITEM_STRING;
             di_curr->item_details = (void *) d_str;
@@ -456,10 +461,10 @@ free_disk_config(void)
             di_next = di_ptr->item_next;
             if (di_ptr->item_details)
                 free(di_ptr->item_details);
-            free((void *) di_ptr);
+            free(di_ptr);
             di_ptr = di_next;
         }
-        free((void *) d_ptr);
+        free(d_ptr);
         d_ptr = d_next;
     }
     conf_list = (conf_disk_list *) 0;
@@ -707,7 +712,7 @@ Add_HR_Disk_entry(const char *devpart_string,
             first_partn;
         disk_devices[HR_number_disk_types].disk_partition_last =
             last_partn;
-#if DEBUG_TEST
+#ifdef DEBUG_TEST
         DEBUGMSGTL(("host/hr_disk",
                     "Add_HR %02d '%s' first=%d last=%d\n",
                     HR_number_disk_types, devpart_string, lodev, hidev));
@@ -722,7 +727,7 @@ Add_HR_Disk_entry(const char *devpart_string,
                     "WARNING! Add_HR_Disk_entry '%s' incomplete, %d created\n",
                     devpart_string, nbr_created));
     }
-#if DEBUG_TEST
+#ifdef DEBUG_TEST
     else
         DEBUGMSGTL(("host/hr_disk",
                     "Add_HR_Disk_entry '%s' completed, %d created\n",
@@ -810,7 +815,7 @@ Get_Next_HR_Disk(void)
                      */
                     DEBUGMSGTL(("host/hr_disk",
                                 "Get_Next_HR_Disk: %s ignored\n", string));
-                    HRD_history[iindex] = LONG_MAX;
+                    HRD_history[iindex] = (time_t)LONG_MAX;
                     HRD_index++;
                     continue;
                 }
@@ -1054,7 +1059,14 @@ Query_Disk(int fd, const char *devfull)
     }
 #endif
 
-#ifdef DIOCGDINFO
+#if defined(DIOCGMEDIASIZE)
+    unsigned long long size64;
+
+    if (ioctl(fd, DIOCGMEDIASIZE, &size64) < 0)
+	result = -1;
+    HRD_info.d_secperunit = size64 / 512;
+    result = 0;
+#elif defined(DIOCGDINFO)
     result = ioctl(fd, DIOCGDINFO, &HRD_info);
 #endif
 

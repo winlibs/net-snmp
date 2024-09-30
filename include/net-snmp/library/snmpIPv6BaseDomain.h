@@ -3,9 +3,11 @@
 #ifndef SNMPIPV6BASE_H
 #define SNMPIPV6BASE_H
 
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
+
+config_require(IPBase);
 
 #include <net-snmp/library/snmp_transport.h>
 
@@ -17,15 +19,20 @@ extern          "C" {
  * Prototypes
  */
 
-    NETSNMP_IMPORT
     char *netsnmp_ipv6_fmtaddr(const char *prefix, netsnmp_transport *t,
-                               void *data, int len);
-    NETSNMP_IMPORT
+                               const void *data, int len);
+    void netsnmp_ipv6_get_taddr(struct netsnmp_transport_s *t, void **addr,
+                                size_t *addr_len);
+    int netsnmp_ipv6_ostring_to_sockaddr(struct sockaddr_in6 *sin6,
+                                         const void *o, size_t o_len);
     int netsnmp_sockaddr_in6_2(struct sockaddr_in6 *addr,
                                const char *inpeername,
                                const char *default_target);
     int netsnmp_sockaddr_in6(struct sockaddr_in6 *addr,
                              const char *inpeername, int remote_port);
+    int
+    netsnmp_sockaddr_in6_3(struct netsnmp_ep *ep,
+                           const char *inpeername, const char *default_target);
 
 #ifdef __cplusplus
 }

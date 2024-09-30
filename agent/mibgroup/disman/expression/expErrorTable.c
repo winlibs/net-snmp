@@ -22,10 +22,10 @@
  * This should always be included first before anything else 
  */
 #include <net-snmp/net-snmp-config.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -78,9 +78,6 @@ struct variable2 expErrorTable_variables[] = {
     {EXPERRORINSTANCE, ASN_OBJECT_ID, NETSNMP_OLDAPI_RONLY,
      var_expErrorTable, 2, {1, 4}}
 };
-
-extern struct header_complex_index *expExpressionTableStorage;
-
 
 void
 init_expErrorTable(void)

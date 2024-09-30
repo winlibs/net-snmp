@@ -24,7 +24,7 @@
 /*
  * we may use header_complex from the header_complex module 
  */
-config_require(header_complex)
+config_require(header_complex);
 
      struct expObjectTable_data {
          char           *expExpressionOwner;
@@ -68,6 +68,9 @@ config_require(header_complex)
 #define EXPOBJCETSAMPLETYPE_ABSOLUTEVALUE	1
 #define EXPOBJCETSAMPLETYPE_DELTAVALUE	2
 #define EXPOBJCETSAMPLETYPE_CHANGEVALUE	3
+
+     extern struct header_complex_index *expObjectTableStorage;
+
     /*
      * function prototypes 
      */

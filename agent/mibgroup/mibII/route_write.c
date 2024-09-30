@@ -11,52 +11,52 @@
 #include <net-snmp/net-snmp-config.h>
 
 #include <sys/types.h>
-#if HAVE_SYS_PARAM_H
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #endif
-#if HAVE_SYS_FILE_H
+#ifdef HAVE_SYS_FILE_H
 #include <sys/file.h>
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
-#if HAVE_SYS_SOCKIO_H
+#ifdef HAVE_SYS_SOCKIO_H
 #include <sys/sockio.h>
 #endif
-#if HAVE_SYS_IOCTL_H
+#ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif
-#if HAVE_SYS_MBUF_H
+#ifdef HAVE_SYS_MBUF_H
 #include <sys/mbuf.h>
 #endif
 
 
-#if HAVE_SYS_STREAM_H
+#ifdef HAVE_SYS_STREAM_H
 #include <sys/stream.h>
 #endif
-#if HAVE_NET_ROUTE_H
+#ifdef HAVE_NET_ROUTE_H
 #include <net/route.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_ARPA_INET_H
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
-#if HAVE_NETDB_H
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
 
 #include <errno.h>
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <stdio.h>
 #include <ctype.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 
@@ -65,9 +65,11 @@
 
 #include "ip.h"
 #include "route_write.h"
+#include "var_route.h"
 
-#ifdef cygwin
+#if defined(cygwin) || defined(mingw32)
 #include <windows.h>
+#include <winerror.h>
 #endif
 
 #if !defined (WIN32) && !defined (cygwin)
@@ -108,13 +110,15 @@ addRoute(u_long dstip, u_long gwip, u_long iff, u_short flags)
 
     flags |= RTF_UP;
 
+    memset(&dst, 0, sizeof(dst));
     dst.sin_family = AF_INET;
     dst.sin_addr.s_addr = htonl(dstip);
 
-
+    memset(&gateway, 0, sizeof(gateway));
     gateway.sin_family = AF_INET;
     gateway.sin_addr.s_addr = htonl(gwip);
 
+    memset(&route, 0, sizeof(route));
     memcpy(&route.rt_dst, &dst, sizeof(struct sockaddr_in));
     memcpy(&route.rt_gateway, &gateway, sizeof(struct sockaddr_in));
 
@@ -198,10 +202,11 @@ delRoute(u_long dstip, u_long gwip, u_long iff, u_short flags)
 
     flags |= RTF_UP;
 
+    memset(&dst, 0, sizeof(dst));
     dst.sin_family = AF_INET;
     dst.sin_addr.s_addr = htonl(dstip);
 
-
+    memset(&gateway, 0, sizeof(gateway));
     gateway.sin_family = AF_INET;
     gateway.sin_addr.s_addr = htonl(gwip);
 
@@ -596,9 +601,6 @@ write_rte(int action,
 #elif defined(HAVE_IPHLPAPI_H)  /* WIN32 cygwin */
 #include <iphlpapi.h>
 
-extern PMIB_IPFORWARDROW route_row;
-extern int      create_flag;
-
 int
 write_rte(int action,
           u_char * var_val,
@@ -798,8 +800,8 @@ write_rte(int action,
                     if ((status =
                          CreateIpForwardEntry(route_row)) != NO_ERROR) {
                         snmp_log(LOG_ERR,
-                                 "Inside COMMIT: CreateIpNetEntry failed, status %lu\n",
-                                 status);
+                                 "Inside COMMIT: CreateIpNetEntry failed, status %u\n",
+                                 (unsigned int)status);
                         retval = SNMP_ERR_COMMITFAILED;
                     }
                 } else {
@@ -812,6 +814,7 @@ write_rte(int action,
                 }
             }
         }
+        /* FALL THROUGH */
 
     case FREE:
         /*

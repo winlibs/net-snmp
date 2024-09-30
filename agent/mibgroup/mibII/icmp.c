@@ -5,17 +5,17 @@
 #include <net-snmp/net-snmp-config.h>
 #include "mibII_common.h"
 
-#if HAVE_NETINET_IP_ICMP_H
+#ifdef HAVE_NETINET_IP_ICMP_H
 #include <netinet/ip_icmp.h>
 #endif
 
 #ifdef NETSNMP_ENABLE_IPV6
-#if HAVE_NETINET_ICMP6_H
+#ifdef HAVE_NETINET_ICMP6_H
 #include <netinet/icmp6.h>
 #endif
 #endif /* NETSNMP_ENABLE_IPV6 */
 
-#if HAVE_NETINET_ICMP_VAR_H
+#ifdef HAVE_NETINET_ICMP_VAR_H
 #include <netinet/icmp_var.h>
 #endif
 
@@ -29,6 +29,7 @@
 
 #include "util_funcs/MIB_STATS_CACHE_TIMEOUT.h"
 #include "icmp.h"
+#include "ip.h"
 
 #ifndef MIB_STATS_CACHE_TIMEOUT
 #define MIB_STATS_CACHE_TIMEOUT	5
@@ -167,11 +168,6 @@ static struct icmp6_mib icmp6stat;
 static const oid icmp_oid[] = { SNMP_OID_MIB2, 5 };
 static const oid icmp_stats_tbl_oid[] = { SNMP_OID_MIB2, 5, 29 };
 static const oid icmp_msg_stats_tbl_oid[] = { SNMP_OID_MIB2, 5, 30 };
-#ifdef USING_MIBII_IP_MODULE
-extern oid      ip_module_oid[];
-extern int      ip_module_oid_len;
-extern int      ip_module_count;
-#endif
 
 #ifdef USES_SNMP_DESIGNED_ICMPSTAT
 struct icmp_stats_table_entry {
@@ -641,7 +637,7 @@ init_icmp(void)
     netsnmp_handler_registration *table_reginfo = NULL;
     netsnmp_iterator_info *iinfo;
     netsnmp_iterator_info *msg_stats_iinfo;
-    netsnmp_table_registration_info *table_info;
+    netsnmp_table_registration_info *table_info = NULL;
     netsnmp_table_registration_info *msg_stats_table_info;
 #endif
     netsnmp_handler_registration *scalar_reginfo = NULL;

@@ -13,9 +13,9 @@
 #include <net-snmp/library/snmp_logging.h>
 #include "agent/nsLogging.h"
 
-netsnmp_feature_require(logging_external)
+netsnmp_feature_require(logging_external);
 #ifndef NETSNMP_NO_WRITE_SUPPORT
-netsnmp_feature_require(table_iterator_insert_context)
+netsnmp_feature_require(table_iterator_insert_context);
 #endif /* NETSNMP_NO_WRITE_SUPPORT */
 
 /*
@@ -54,6 +54,7 @@ init_nsLogging(void)
      */
     iinfo      = SNMP_MALLOC_TYPEDEF(netsnmp_iterator_info);
     if (!iinfo) {
+        SNMP_FREE(table_info);
         return;
     }
     iinfo->get_first_data_point = get_first_logging_entry;
@@ -146,6 +147,8 @@ handle_nsLoggingTable(netsnmp_mib_handler *handler,
                 continue;
             logh = (netsnmp_log_handler*)netsnmp_extract_iterator_context(request);
             table_info  =                netsnmp_extract_table_info(request);
+            if (!table_info || !table_info->indexes)
+                continue;
 
             switch (table_info->colnum) {
             case NSLOGGING_TYPE:
@@ -200,6 +203,8 @@ handle_nsLoggingTable(netsnmp_mib_handler *handler,
             }
             logh = (netsnmp_log_handler*)netsnmp_extract_iterator_context(request);
             table_info  =                 netsnmp_extract_table_info(request);
+            if (!table_info || !table_info->indexes)
+                continue;
 
             switch (table_info->colnum) {
             case NSLOGGING_TYPE:
@@ -393,6 +398,8 @@ handle_nsLoggingTable(netsnmp_mib_handler *handler,
                 continue;
             logh = (netsnmp_log_handler*)netsnmp_extract_iterator_context(request);
             table_info  =                 netsnmp_extract_table_info(request);
+            if (!table_info || !table_info->indexes)
+                continue;
 
             switch (table_info->colnum) {
             case NSLOGGING_TYPE:

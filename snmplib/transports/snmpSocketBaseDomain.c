@@ -11,23 +11,23 @@
 
 #include <stddef.h>
 #include <stdio.h>
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <sys/types.h>
 #include <ctype.h>
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_FCNTL_H
+#ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
 #include <errno.h>
@@ -345,7 +345,7 @@ int
 netsnmp_set_non_blocking_mode(int sock, int non_blocking_mode)
 {
 #ifdef WIN32
-    u_long          arg;
+    NETSNMP_IOCTLSOCKET_ARG arg;
 
     arg = non_blocking_mode;
     return ioctlsocket(sock, FIONBIO, &arg);

@@ -1,3 +1,14 @@
+/*
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ */
+
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 
@@ -6,7 +17,7 @@
 
 #include <net-snmp/agent/table_tdata.h>
 
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -16,21 +27,17 @@
 #include <net-snmp/agent/table_container.h>
 #include <net-snmp/agent/read_only.h>
 
-#if HAVE_DMALLOC_H
-#include <dmalloc.h>
-#endif
-
-netsnmp_feature_child_of(table_tdata_all, mib_helpers)
-netsnmp_feature_child_of(table_tdata, table_tdata_all)
-netsnmp_feature_child_of(table_tdata_delete_table, table_tdata_all)
-netsnmp_feature_child_of(table_tdata_extract_table, table_tdata_all)
-netsnmp_feature_child_of(table_tdata_remove_row, table_tdata_all)
-netsnmp_feature_child_of(table_tdata_insert_row, table_tdata_all)
+netsnmp_feature_child_of(table_tdata_all, mib_helpers);
+netsnmp_feature_child_of(table_tdata, table_tdata_all);
+netsnmp_feature_child_of(table_tdata_delete_table, table_tdata_all);
+netsnmp_feature_child_of(table_tdata_extract_table, table_tdata_all);
+netsnmp_feature_child_of(table_tdata_remove_row, table_tdata_all);
+netsnmp_feature_child_of(table_tdata_insert_row, table_tdata_all);
 
 #ifdef NETSNMP_FEATURE_REQUIRE_TABLE_TDATA
-netsnmp_feature_require(table_container_row_insert)
+netsnmp_feature_require(table_container_row_insert);
 #ifdef NETSNMP_FEATURE_REQUIRE_TABLE_TDATA_REMOVE_ROW
-netsnmp_feature_require(table_container_row_remove)
+netsnmp_feature_require(table_container_row_remove);
 #endif /* NETSNMP_FEATURE_REQUIRE_TABLE_TDATA_REMOVE_ROW */
 #endif /* NETSNMP_FEATURE_REQUIRE_TABLE_TDATA */
 
@@ -83,7 +90,7 @@ netsnmp_tdata_create_table(const char *name, long flags)
         table->container = netsnmp_container_find( name );
         if (!table->container)
             table->container = netsnmp_container_find( "table_container" );
-        if (table->container)
+        if (table->container && name)
             table->container->container_name = strdup(name);
     }
     return table;
@@ -116,7 +123,7 @@ netsnmp_tdata_create_row(void)
 }
 
 /** clones a 'tdata' row. DOES NOT CLONE THE TABLE-SPECIFIC ENTRY DATA. */
-netsnmp_feature_child_of(tdata_clone_row, table_tdata_all)
+netsnmp_feature_child_of(tdata_clone_row, table_tdata_all);
 #ifndef NETSNMP_FEATURE_REMOVE_TDATA_CLONE_ROW
 netsnmp_tdata_row *
 netsnmp_tdata_clone_row(netsnmp_tdata_row *row)
@@ -154,7 +161,7 @@ netsnmp_tdata_clone_row(netsnmp_tdata_row *row)
 
 /** copy the contents of a 'tdata' row.
     DOES NOT COPY THE TABLE-SPECIFIC ENTRY DATA. */
-netsnmp_feature_child_of(tdata_copy_row, table_tdata_all)
+netsnmp_feature_child_of(tdata_copy_row, table_tdata_all);
 #ifndef NETSNMP_FEATURE_REMOVE_TDATA_COPY_ROW
 int
 netsnmp_tdata_copy_row(netsnmp_tdata_row *dst_row, netsnmp_tdata_row *src_row)
@@ -256,7 +263,7 @@ netsnmp_tdata_add_row(netsnmp_tdata     *table,
 }
 
 /** swaps out origrow with newrow.  This does *not* delete/free anything! */
-netsnmp_feature_child_of(tdata_replace_row, table_tdata_all)
+netsnmp_feature_child_of(tdata_replace_row, table_tdata_all);
 #ifndef NETSNMP_FEATURE_REMOVE_TDATA_REPLACE_ROW
 void
 netsnmp_tdata_replace_row(netsnmp_tdata *table,
@@ -354,17 +361,15 @@ _netsnmp_tdata_helper_handler(netsnmp_mib_handler *handler,
     netsnmp_request_info       *request;
     netsnmp_table_request_info *table_info;
     netsnmp_tdata_row          *row;
-    int                         need_processing = 1;
+    int                         need_processing;
 
     switch ( reqinfo->mode ) {
     case MODE_GET:
-        need_processing = 0; /* only need processing if some vars found */
-        /** Fall through */
-
 #ifndef NETSNMP_NO_WRITE_SUPPORT
     case MODE_SET_RESERVE1:
 #endif /* NETSNMP_NO_WRITE_SUPPORT */
 
+        need_processing = reqinfo->mode == MODE_GET ? 0 : 1;
         for (request = requests; request; request = request->next) {
             if (request->processed)
                 continue;
@@ -405,12 +410,21 @@ netsnmp_tdata_register(netsnmp_handler_registration    *reginfo,
                        netsnmp_tdata                   *table,
                        netsnmp_table_registration_info *table_info)
 {
-    netsnmp_inject_handler(reginfo, netsnmp_get_tdata_handler(table));
+    netsnmp_mib_handler *handler = netsnmp_get_tdata_handler(table);
+
+    if (!reginfo || !table || !table_info || !handler ||
+        (netsnmp_inject_handler(reginfo, handler) != SNMPERR_SUCCESS)) {
+        snmp_log(LOG_ERR, "could not create tdata handler\n");
+        netsnmp_handler_free(handler);
+        netsnmp_handler_registration_free(reginfo);
+        return SNMP_ERR_GENERR;
+    }
+
     return netsnmp_container_table_register(reginfo, table_info,
                   table->container, TABLE_CONTAINER_KEY_NETSNMP_INDEX);
 }
 
-netsnmp_feature_child_of(tdata_unregister, table_tdata_all)
+netsnmp_feature_child_of(tdata_unregister, table_tdata_all);
 #ifndef NETSNMP_FEATURE_REMOVE_TDATA_UNREGISTER
 int
 netsnmp_tdata_unregister(netsnmp_handler_registration    *reginfo)
@@ -431,7 +445,7 @@ netsnmp_tdata_extract_table(netsnmp_request_info *request)
 #endif /* NETSNMP_FEATURE_REMOVE_TABLE_TDATA_EXTRACT_TABLE */
 
 /** extracts the tdata container from the request structure */
-netsnmp_feature_child_of(tdata_extract_container, table_tdata_all)
+netsnmp_feature_child_of(tdata_extract_container, table_tdata_all);
 #ifndef NETSNMP_FEATURE_REMOVE_TDATA_EXTRACT_CONTAINER
 netsnmp_container *
 netsnmp_tdata_extract_container(netsnmp_request_info *request)
@@ -578,7 +592,7 @@ netsnmp_tdata_row_next_byoid(netsnmp_tdata *table,
     return (netsnmp_tdata_row*)CONTAINER_NEXT( table->container, &index );
 }
 
-netsnmp_feature_child_of(tdata_row_count, table_tdata_all)
+netsnmp_feature_child_of(tdata_row_count, table_tdata_all);
 #ifndef NETSNMP_FEATURE_REMOVE_TDATA_ROW_COUNT
 int
 netsnmp_tdata_row_count(netsnmp_tdata *table)
@@ -597,7 +611,7 @@ netsnmp_tdata_row_count(netsnmp_tdata *table)
 
 
 /** compare a row with the given index values */
-netsnmp_feature_child_of(tdata_compare_idx, table_tdata_all)
+netsnmp_feature_child_of(tdata_compare_idx, table_tdata_all);
 #ifndef NETSNMP_FEATURE_REMOVE_TDATA_COMPARE_IDX
 int
 netsnmp_tdata_compare_idx(netsnmp_tdata_row     *row,

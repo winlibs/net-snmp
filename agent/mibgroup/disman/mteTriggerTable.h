@@ -13,11 +13,11 @@
  */
 
 
-config_require(header_complex)
-config_require(utilities/iquery)
+config_require(header_complex);
+config_require(utilities/iquery);
 
 #ifndef NETSNMP_TRANSPORT_CALLBACK_DOMAIN
-config_error(disman/mteTriggerTable depends on the Callback transport)
+config_error(disman/mteTriggerTable depends on the Callback transport);
 #endif
 
     /*
@@ -214,6 +214,8 @@ config_error(disman/mteTriggerTable depends on the Callback transport)
 #define MTE_FAILURE_BADTYPE			-5
 #define MTE_FAILURE_SAMPLEOVERRUN		-6
 
+
+     extern struct header_complex_index *mteTriggerTableStorage;
 
 /*
  * function prototypes 

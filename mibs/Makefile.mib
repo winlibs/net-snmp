@@ -1,6 +1,6 @@
 # RFCHOST =	ftp://ftp.nordu.net
-RFCHOST =	ftp://ftp.ietf.org
-RFCDIR =	rfc
+RFCHOST =	https://www.ietf.org
+RFCDIR =	ietf-ftp/rfc
 
 IANAHOST =	http://www.iana.org
 IANADIR =	assignments
@@ -16,6 +16,7 @@ MIBS =	SNMPv2-TC.txt SNMPv2-TM.txt SNMPv2-SMI.txt SNMPv2-MIB.txt \
 	SNMP-TARGET-MIB.txt SNMP-NOTIFICATION-MIB.txt SNMP-PROXY-MIB.txt \
 	SNMP-USM-DH-OBJECTS-MIB.txt SNMP-USM-AES-MIB.txt \
 	SNMP-TLS-TM-MIB.txt \
+	SNMP-TSM-MIB.txt SNMP-SSH-TM-MIB.txt \
 	AGENTX-MIB.txt SMUX-MIB.txt \
 	DISMAN-SCRIPT-MIB.txt DISMAN-SCHEDULE-MIB.txt \
 	DISMAN-PING-MIB.txt DISMAN-TRACEROUTE-MIB.txt \
@@ -75,11 +76,20 @@ SNMP-COMMUNITY-MIB.txt:	$(MIBDEPS)
 SNMP-USM-AES-MIB.txt:	$(MIBDEPS)
 	./mibfetch $(RFCHOST) $(RFCDIR) 3826
 
+SNMP-USM-HMAC-SHA2-MIB.txt:	$(MIBDEPS)
+	./mibfetch $(RFCHOST) $(RFCDIR) 7860
+
 SNMP-TLS-TM-MIB.txt:	$(MIBDEPS)
 	./mibfetch $(RFCHOST) $(RFCDIR) 6353
 
 SNMP-USM-DH-OBJECTS-MIB.txt:	$(MIBDEPS)
 	./mibfetch $(RFCHOST) $(RFCDIR) 2786
+
+SNMP-TSM-MIB.txt:	$(MIBDEPS)
+	./mibfetch $(RFCHOST) $(RFCDIR) 5591
+
+SNMP-SSH-TM-MIB.txt:	$(MIBDEPS)
+	./mibfetch $(RFCHOST) $(RFCDIR) 5592
 
 SNMPv2-SMI.txt:	$(MIBDEPS)
 	./mibfetch $(RFCHOST) $(RFCDIR) 2578 SNMPv2-SMI
@@ -165,17 +175,8 @@ TUNNEL-MIB.txt:	$(MIBDEPS)
 TRANSPORT-ADDRESS-MIB.txt:	$(MIBDEPS)
 	./mibfetch $(RFCHOST) $(RFCDIR) 3419
 
-IPV6-TC.txt IPV6-MIB.txt:	$(MIBDEPS)
-	./mibfetch $(RFCHOST) $(RFCDIR) 2465
-
-IPV6-ICMP-MIB.txt:	$(MIBDEPS)
-	./mibfetch $(RFCHOST) $(RFCDIR) 2466
-
-IPV6-TCP-MIB.txt:	$(MIBDEPS)
-	./mibfetch $(RFCHOST) $(RFCDIR) 2452
-
-IPV6-UDP-MIB.txt:	$(MIBDEPS)
-	./mibfetch $(RFCHOST) $(RFCDIR) 2454
+IPV6-TC.txt IPV6-MIB.txt IPV6-ICMP-MIB IPV6-TCP-MIB IPV6-UDP-MIB:	$(MIBDEPS)
+	./mibfetch $(RFCHOST) $(RFCDIR) 8096
 
 IPV6-FLOW-LABEL-MIB.txt:	$(MIBDEPS)
 	./mibfetch $(RFCHOST) $(RFCDIR) 3595

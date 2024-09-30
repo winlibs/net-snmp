@@ -5,40 +5,44 @@
 
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
+/* For FreeBSD */
+#define _WANT_INPCB 1
+#define _WANT_TCPCB 1
+#include <sys/types.h>
+#include <sys/socket.h>
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
 #if defined(NETSNMP_IFNET_NEEDS_KERNEL) && !defined(_KERNEL)
 #define _KERNEL 1
 #define _I_DEFINED_KERNEL
 #endif
-#if NETSNMP_IFNET_NEEDS_KERNEL_STRUCTURES
+#ifdef NETSNMP_IFNET_NEEDS_KERNEL_STRUCTURES
 #define _KERNEL_STRUCTURES
 #endif
-#include <sys/types.h>
 #include <sys/param.h>
-#include <sys/socket.h>
-#if defined(freebsd3) || defined(darwin)
-# if HAVE_SYS_SOCKETVAR_H
-#  include <sys/socketvar.h>
-# endif
+#ifdef _I_DEFINED_KERNEL
+#undef _KERNEL
+#endif
+#ifdef HAVE_SYS_SOCKETVAR_H
+# include <sys/socketvar.h>
 #endif
 
-#if STDC_HEADERS
+#ifdef STDC_HEADERS
 #include <string.h>
 #include <stdlib.h>
 #else
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if HAVE_SYS_SYSCTL_H
+#ifdef HAVE_SYS_SYSCTL_H
 #ifdef _I_DEFINED_KERNEL
 #undef _KERNEL
 #endif
@@ -47,17 +51,23 @@
 #define _KERNEL 1
 #endif
 #endif
-#if HAVE_SYS_SYSMP_H
+#ifdef HAVE_SYS_SYSMP_H
 #include <sys/sysmp.h>
 #endif
-#if HAVE_SYS_TCPIPSTATS_H
+#ifdef HAVE_SYS_TCPIPSTATS_H
 #include <sys/tcpipstats.h>
 #endif
+#ifdef _I_DEFINED_KERNEL
+#undef _KERNEL
+#endif
 #include <net/if.h>
-#if HAVE_NET_IF_VAR_H
+#ifdef _I_DEFINED_KERNEL
+#define _KERNEL 1
+#endif
+#ifdef HAVE_NET_IF_VAR_H
 #include <net/if_var.h>
 #endif
-#if HAVE_NET_IF_DL_H
+#ifdef HAVE_NET_IF_DL_H
 #include <net/if_dl.h>
 #endif
 #ifdef HAVE_NET_IF_MIB_H
@@ -67,68 +77,84 @@
 #undef _KERNEL
 #endif
 #include <netinet/in_systm.h>
-#if HAVE_SYS_HASHING_H
+#ifdef HAVE_SYS_HASHING_H
 #include <sys/hashing.h>
 #endif
-#if HAVE_SYS_SOCKIO_H
+#ifdef HAVE_SYS_SOCKIO_H
 #include <sys/sockio.h>
 #endif
-#if HAVE_NETINET6_IN6_VAR_H
+#ifdef HAVE_NETINET6_IN6_VAR_H
 #include <netinet6/in6_var.h>
 #endif
 #include <netinet/ip6.h>
-#if HAVE_NETINET_IP_VAR_H
+#ifdef HAVE_NETINET_IP_VAR_H
 # include <netinet/ip_var.h>
 #endif
-#if HAVE_NETINET6_IP6_VAR_H
+#ifdef HAVE_NETINET_ICMP6_H
+# include <netinet/icmp6.h>
+#endif
+#ifdef HAVE_NETINET6_IP6_VAR_H
+# include <sys/queue.h>
 # include <netinet6/ip6_var.h>
 #endif
 #include <net/route.h>
-#if defined(freebsd3) || defined(darwin) || defined(openbsd4)
-# if HAVE_NETINET_IP_H
-#  include <netinet/ip.h>
-# endif
-# if HAVE_NETINET_IN_PCB_H
-#  include <netinet/in_pcb.h>
-# endif
+#ifdef HAVE_NETINET_IP_H
+# include <netinet/ip.h>
 #endif
-#if HAVE_NETINET6_IN6_PCB_H
+#ifdef HAVE_NETINET_IN_PCB_H
+# include <netinet/in_pcb.h>
+#endif
+#ifdef HAVE_NETINET6_IN6_PCB_H
 # include <netinet6/in6_pcb.h>
 #endif
-#if HAVE_NETINET6_TCP6_H
+#ifdef HAVE_NETINET6_TCP6_H
 # define TCP6
 #endif
 #ifndef TCP6
-# if HAVE_NETINET_TCP_H
+# ifdef HAVE_NETINET_TCP_H
 #  include <netinet/tcp.h>
 # endif
-# if HAVE_NETINET_TCP_TIMER_H
+# ifdef HAVE_NETINET_TCP_TIMER_H
 #  include <netinet/tcp_timer.h>
 # endif
-# if HAVE_NETINET_TCP_VAR_H
+# ifdef HAVE_NETINET_TCP_VAR_H
 #  include <netinet/tcp_var.h>
 # endif
-# if HAVE_NETINET_TCP_FSM_H
+# ifdef HAVE_NETINET_TCP_FSM_H
 #  include <netinet/tcp_fsm.h>
 # endif
 #endif
-#if HAVE_NETINET6_TCP6_H
+#ifdef HAVE_NETINET6_TCP6_H
 # include <netinet6/tcp6.h>
 #endif
-#if HAVE_NETINET6_TCP6_TIMER_H
+#ifdef HAVE_NETINET6_TCP6_TIMER_H
 #include <netinet6/tcp6_timer.h>
 #endif
-#if HAVE_NETINET6_TCP6_VAR_H
+#ifdef HAVE_NETINET6_TCP6_VAR_H
 #include <netinet6/tcp6_var.h>
 #endif
-#if HAVE_NETINET6_TCP6_FSM_H
+#ifdef HAVE_NETINET6_TCP6_FSM_H
 #include <netinet6/tcp6_fsm.h>
 #endif
-#if HAVE_INET_MIB2_H
+#ifdef HAVE_INET_MIB2_H
 #include <inet/mib2.h>
 #endif
 #ifdef HAVE_SYSLOG_H
 #include <syslog.h>
+#endif
+
+#ifdef HAVE_KVM_GETFILES
+#if defined(HAVE_KVM_GETFILE2) || !defined(openbsd5)
+#undef HAVE_KVM_GETFILES
+#endif
+#endif
+
+#ifdef HAVE_KVM_GETFILES
+#include <kvm.h>
+#include <sys/sysctl.h>
+#define _KERNEL
+#include <sys/file.h>
+#undef _KERNEL
 #endif
 
 #ifdef MIB_IPCOUNTER_SYMBOL
@@ -144,9 +170,13 @@
 #include "ipv6.h"
 #include "interfaces.h"
 
-netsnmp_feature_require(linux_read_ip6_stat)
+#ifdef freebsd3
+#undef in6pcb
+#endif
 
-#if defined(netbsd1) && !defined(openbsd4)
+netsnmp_feature_require(linux_read_ip6_stat);
+
+#if defined(netbsd1) && !defined(openbsd4) && __NetBSD_Version__ < 999010400
 #define inp_lport in6p_lport
 #define inp_fport in6p_fport
 #define inp_ppcb in6p_ppcb
@@ -295,8 +325,8 @@ struct variable3 ipv6_variables[] = {
 oid             ipv6_variables_oid[] = { SNMP_OID_MIB2, 55, 1 };
 #if 0
 config_load_mib(MIB .55 .1, 8, ipv6_variables)
-    config_add_mib(IPV6 - TC)
-    config_add_mib(IPV6 - MIB)
+    config_add_mib(IPV6 - TC);
+    config_add_mib(IPV6 - MIB);
 #endif
      struct variable3 ipv6icmp_variables[] = {
          {IPV6IFICMPINMSG, ASN_COUNTER, NETSNMP_OLDAPI_RONLY,
@@ -371,7 +401,7 @@ config_load_mib(MIB .55 .1, 8, ipv6_variables)
 oid             ipv6icmp_variables_oid[] = { 1, 3, 6, 1, 2, 1, 56, 1 };
 #if 0
 config_load_mib(MIB .56 .1, 8, ipv6icmp_variables)
-    config_add_mib(IPV6 - ICMP - MIB)
+    config_add_mib(IPV6 - ICMP - MIB);
 #endif
      struct variable2 ipv6udp_variables[] = {
          {IPV6UDPIFINDEX, ASN_INTEGER, NETSNMP_OLDAPI_RONLY,
@@ -380,7 +410,7 @@ config_load_mib(MIB .56 .1, 8, ipv6icmp_variables)
 oid             ipv6udp_variables_oid[] = { 1, 3, 6, 1, 2, 1, 7, 6 };
 #if 0
 config_load_mib(1.3 .6 .1 .3 .87 .1, 7, ipv6udp_variables)
-    config_add_mib(IPV6 - UDP - MIB)
+    config_add_mib(IPV6 - UDP - MIB);
 #endif
      struct variable2 ipv6tcp_variables[] = {
          {IPV6TCPCONNSTATE, ASN_INTEGER, NETSNMP_OLDAPI_RONLY,
@@ -389,7 +419,7 @@ config_load_mib(1.3 .6 .1 .3 .87 .1, 7, ipv6udp_variables)
 oid             ipv6tcp_variables_oid[] = { 1, 3, 6, 1, 2, 1, 6, 16 };
 #if 0
 config_load_mib(1.3 .6 .1 .3 .86 .1, 7, ipv6tcp_variables)
-    config_add_mib(IPV6 - TCP - MIB)
+    config_add_mib(IPV6 - TCP - MIB);
 #endif
 
 void
@@ -597,6 +627,43 @@ if_getindex(const char *name)
 
 /*------------------------------------------------------------*/
 #ifndef linux
+
+#if defined(__OpenBSD__) || defined(freebsd3)
+
+ /*
+  * It is not possible to use struct ifnet anymore on OpenBSD, get
+  * interface flags and L2 address through getifaddrs(3).
+  */
+
+#include <ifaddrs.h>
+
+static int
+if_getifflags(int ifindex, int *ifflags)
+{
+    const char      *ifname;
+    struct ifaddrs  *ifa0, *ifa;
+    int              ret = -1;
+
+    ifname = if_getname(ifindex);
+    if (ifname == NULL)
+        return ret;
+
+    if (getifaddrs(&ifa0) != -1) {
+        for (ifa = ifa0; ifa != NULL; ifa = ifa->ifa_next) {
+            if (strcmp(ifa->ifa_name, ifname) == 0) {
+                *ifflags = ifa->ifa_flags;
+                ret = 0;
+                break;
+            }
+        }
+        freeifaddrs(ifa0);
+    }
+
+    return ret;
+}
+
+#else
+
 /*
  * KAME dependent part 
  */
@@ -630,7 +697,9 @@ if_getifnet(int idx, struct ifnet *result)
     return -1;
 }
 
-#if TRUST_IFLASTCHANGE         /*untrustable value returned... */
+#endif /* !__OpenBSD__ */
+
+#ifdef TRUST_IFLASTCHANGE         /*untrustable value returned... */
 #ifdef HAVE_NET_IF_MIB_H
 #if defined(HAVE_SYS_SYSCTL_H) && defined(CTL_NET)
 static int
@@ -803,7 +872,7 @@ var_ifv6Entry(register struct variable * vp,
         p = if_getname(interface);
         if (p) {
             *var_len = strlen(p);
-            return p;
+            return (u_char *)p;
         }
         break;
     case IPV6IFLOWLAYER:
@@ -844,6 +913,37 @@ var_ifv6Entry(register struct variable * vp,
 #endif
     case IPV6IFPHYSADDRESS:
         {
+#if defined(__OpenBSD__) || defined(freebsd3)
+	    struct ifaddrs *ifa0, *ifa;
+            static struct sockaddr_dl sdl;
+            char ifnam[IF_NAMESIZE];
+
+	    if (if_indextoname(interface, ifnam) == NULL) {
+                *var_len = 0;
+                return NULL;
+            }
+
+	    if (getifaddrs(&ifa0) != -1) {
+                for (ifa = ifa0; ifa != NULL; ifa = ifa->ifa_next) {
+
+                    if (strcmp(ifnam, ifa->ifa_name) != 0)
+                       continue;
+
+                    if (ifa->ifa_addr == NULL)
+                       continue;
+
+                    memcpy(&sdl, ifa->ifa_addr, sizeof(sdl));
+                    if (sdl.sdl_family != AF_LINK)
+                       continue;
+
+                   freeifaddrs(ifa0);
+                   *var_len = sdl.sdl_alen;
+                   return (u_char *) (sdl.sdl_data + sdl.sdl_nlen);
+		}
+	    }
+	    freeifaddrs(ifa0);
+	    return NULL;
+#else
             struct ifnet    ifnet;
             struct ifaddr   ifaddr;
 #if defined(__DragonFly__) && __DragonFly_version >= 197700
@@ -929,26 +1029,41 @@ var_ifv6Entry(register struct variable * vp,
              */
             *var_len = 0;
             return NULL;
+#endif /* !__OpenBSD__ */
         }
     case IPV6IFADMSTATUS:
         {
+#if defined(__OpenBSD__) || defined(freebsd3)
+            int    if_flags;
+            if (if_getifflags(interface, &if_flags) < 0)
+                break;
+            long_return = (if_flags & IFF_RUNNING) ? 1 : 2;
+#else
             struct ifnet    ifnet;
 
             if (if_getifnet(interface, &ifnet) < 0)
                 break;
             long_return = (ifnet.if_flags & IFF_RUNNING) ? 1 : 2;
+#endif
             return (u_char *) & long_return;
         }
     case IPV6IFOPERSTATUS:
         {
+#if defined(__OpenBSD__) || defined(freebsd3)
+            int    if_flags;
+            if (if_getifflags(interface, &if_flags) < 0)
+                break;
+            long_return = (if_flags & IFF_UP) ? 1 : 2;
+#else
             struct ifnet    ifnet;
 
             if (if_getifnet(interface, &ifnet) < 0)
                 break;
             long_return = (ifnet.if_flags & IFF_UP) ? 1 : 2;
+#endif
             return (u_char *) & long_return;
         }
-#if TRUST_IFLASTCHANGE         /*untrustable value returned... */
+#ifdef TRUST_IFLASTCHANGE         /*untrustable value returned... */
     case IPV6IFLASTCHANGE:
         {
             struct timeval  lastchange;
@@ -1302,6 +1417,91 @@ var_icmpv6Entry(register struct variable * vp,
 #endif
 }
 
+#ifdef HAVE_KVM_GETFILES
+
+u_char         *
+var_udp6(register struct variable * vp,
+         oid * name,
+         size_t * length,
+         int exact, size_t * var_len, WriteMethod ** write_method)
+{
+    oid             newname[MAX_OID_LEN];
+    oid             savname[MAX_OID_LEN];
+    int             result, count, found, savnameLen;
+    int             p, i, j;
+    u_char         *sa, *savsa;
+    struct kinfo_file *udp;
+
+    udp = kvm_getfiles(kd, KERN_FILE_BYFILE, DTYPE_SOCKET, sizeof(struct kinfo_file), &count);
+    found = savnameLen = 0;
+    memcpy(newname, vp->name, (int) vp->namelen * sizeof(oid));
+    for (p = 0; p < count; p++) {
+	if (udp[p].so_protocol != IPPROTO_UDP || udp[p].so_family != AF_INET6)
+	    continue;
+	j = vp->namelen;
+        sa = (u_char *)&udp[p].inp_laddru[0];
+	for (i = 0; i < sizeof(struct in6_addr); i++)
+            newname[j++] = sa[i];
+        newname[j++] = ntohs(udp[p].inp_lport);
+        if (IN6_IS_ADDR_LINKLOCAL((struct in6_addr *)sa))
+            newname[j++] = ntohs(sa[2]);
+        else
+            newname[j++] = 0;
+        DEBUGMSGTL(("mibII/ipv6", "var_udp6 new: %d %d ",
+                    (int) vp->namelen, j));
+        DEBUGMSGOID(("mibII/ipv6", newname, j));
+        DEBUGMSG(("mibII/ipv6", " %d\n", exact));
+
+        result = snmp_oid_compare(name, *length, newname, j);
+        if (exact && result == 0) {
+                savnameLen = j;
+                memcpy(savname, newname, j * sizeof(oid));
+                savsa = sa;
+                found++;
+                break;
+        } else if (!exact && result < 0) {
+            /*
+             *  take the least greater one
+             */
+            if (savnameLen == 0 || snmp_oid_compare(savname, savnameLen, newname, j) > 0) {
+                savnameLen = j;
+                savsa = sa;
+                memcpy(savname, newname, j * sizeof(oid));
+                    found++;
+            }
+        }
+    }
+    DEBUGMSGTL(("mibII/ipv6", "found=%d\n", found));
+    if (!found)
+        return NULL;
+    *length = savnameLen;
+    memcpy((char *) name, (char *) savname, *length * sizeof(oid));
+    *write_method = 0;
+    *var_len = sizeof(long);    /* default to 'long' results */
+
+/*
+ *     DEBUGMSGTL(("mibII/ipv6", "var_udp6 found: "));
+ *     DEBUGMSGOID(("mibII/ipv6", name, *length));
+ *     DEBUGMSG(("mibII/ipv6", " %d\n", exact));
+ */
+    DEBUGMSGTL(("mibII/ipv6", "magic=%d\n", vp->magic));
+    switch (vp->magic) {
+    case IPV6UDPIFINDEX:
+        if (IN6_IS_ADDR_LINKLOCAL((struct in6_addr *)savsa))
+            long_return = ntohs(savsa[2]);
+        else
+            long_return = 0;
+        return (u_char *) &long_return;
+    default:
+        break;
+    }
+    ERROR_MSG("");
+
+    return NULL;
+}
+
+#else
+
 u_char         *
 var_udp6(register struct variable * vp,
          oid * name,
@@ -1313,7 +1513,7 @@ var_udp6(register struct variable * vp,
     int             result;
     int             i, j;
     caddr_t         p;
-#if defined(openbsd4)
+#if defined(openbsd4) || defined(freebsd3)
     static struct inpcb in6pcb, savpcb;
 #else
     static struct in6pcb in6pcb, savpcb;
@@ -1329,21 +1529,24 @@ var_udp6(register struct variable * vp,
 #elif defined(freebsd3) || defined(darwin)
     char           *sysctl_buf;
     struct xinpgen *xig, *oxig;
-    static struct in6pcb udb6;
 #endif
 
     DEBUGMSGTL(("mibII/ipv6", "var_udp6: "));
     DEBUGMSGOID(("mibII/ipv6", name, *length));
     DEBUGMSG(("mibII/ipv6", " %d\n", exact));
 
-#if defined(__NetBSD__) && __NetBSD_Version__ >= 106250000 || defined(openbsd4)	/*1.6Y*/
+#if defined(__NetBSD__) && __NetBSD_Version__ >= 700000001
     if (!auto_nlist("udbtable", (char *) &udbtable, sizeof(udbtable)))
         return NULL;
-    first = p = (caddr_t)udbtable.inpt_queue.cqh_first;
-#elif !defined(freebsd3) && !defined(darwin)
-    if (!auto_nlist("udb6", (char *) &udb6, sizeof(udb6)))
+    first = p = (caddr_t)udbtable.inpt_queue.tqh_first;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 106250000 || defined(openbsd4)	/*1.6Y*/
+    if (!auto_nlist("udbtable", (char *) &udbtable, sizeof(udbtable)))
         return NULL;
-    p = (caddr_t) udb6.in6p_next;
+#if defined(openbsd5)
+    first = p = (caddr_t)TAILQ_FIRST(&udbtable.inpt_queue);
+#else
+    first = p = (caddr_t)udbtable.inpt_queue.cqh_first;
+#endif
 #elif defined(dragonfly)
     {
         const char     *udblist = "net.inet.udp.pcblist";
@@ -1364,6 +1567,14 @@ var_udp6(register struct variable * vp,
 	    return NULL;
 	}
         p = (caddr_t) ((char *) xig); /* silence compiler warning */
+    }
+#elif !defined(freebsd3) && !defined(darwin)
+    {
+    static struct in6pcb udb6;
+
+    if (!auto_nlist("udb6", (char *) &udb6, sizeof(udb6)))
+        return NULL;
+    p = (caddr_t) udb6.in6p_next;
     }
 #else
     {
@@ -1402,19 +1613,30 @@ var_udp6(register struct variable * vp,
         ) {
         DEBUGMSGTL(("mibII/ipv6", "looping: p=%p\n", p));
 
-#if !defined(freebsd3) && !defined(darwin)
+#if defined(freebsd3)
+	/* To do: fill in in6pcb properly. */
+	memset(&in6pcb, 0, sizeof(in6pcb));
+#elif defined(darwin)
+	in6pcb = ((struct xinpcb *) xig)->xi_inp;
+#else
         if (!NETSNMP_KLOOKUP(p, (char *) &in6pcb, sizeof(in6pcb))) {
             DEBUGMSGTL(("mibII/ipv6", "klookup fail for udb6 at %p\n",
                         p));
             found = 0;
             break;
         }
-#else
-        in6pcb = ((struct xinpcb *) xig)->xi_inp;
 #endif
 #if defined(__NetBSD__) && __NetBSD_Version__ >= 106250000	/*1.6Y*/
+# if __NetBSD_Version__ < 999010400
         if (in6pcb.in6p_af != AF_INET6)
             goto skip;
+# else
+        if (in6pcb.in6p_pcb.inp_af != AF_INET6)
+	    goto skip;
+# endif
+#elif defined(INP_ISIPV6)
+	if (!INP_ISIPV6(&in6pcb))
+	    goto skip;
 #elif defined(freebsd3) || defined(darwin)
         if (0 == (in6pcb.inp_vflag & INP_IPV6))
             goto skip;
@@ -1431,6 +1653,15 @@ var_udp6(register struct variable * vp,
         if (IN6_IS_ADDR_LINKLOCAL(&in6pcb.inp_laddr6))
             newname[j++] =
                 ntohs(*(uint16_t *) &in6pcb.inp_laddr6.s6_addr[2]);
+        else
+            newname[j++] = 0;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+        for (i = 0; i < sizeof(struct in6_addr); i++)
+            newname[j++] = in6pcb.in6p_ip6.ip6_src.s6_addr[i];
+        newname[j++] = ntohs(in6pcb.in6p_pcb.inp_lport);
+        if (IN6_IS_ADDR_LINKLOCAL(&in6pcb.in6p_ip6.ip6_src))
+            newname[j++] =
+                ntohs(*(uint16_t *) &in6pcb.in6p_ip6.ip6_src.s6_addr[2]);
         else
             newname[j++] = 0;
 #else
@@ -1470,16 +1701,25 @@ var_udp6(register struct variable * vp,
         }
 
       skip:
-#if defined(openbsd4)
+#ifdef openbsd5
+        p = (caddr_t)TAILQ_NEXT(&in6pcb, inp_queue);
+        if (p == NULL) break;
+#elif defined(openbsd4)
         p = (caddr_t)in6pcb.inp_queue.cqe_next;
+	if (p == first) break;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+        p = (caddr_t)in6pcb.in6p_pcb.inp_queue.tqe_next;
+        if (p == first) break;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 700000001
+        p = (caddr_t)in6pcb.in6p_queue.tqe_next;
 	if (p == first) break;
 #elif defined(__NetBSD__) && __NetBSD_Version__ >= 106250000	/*1.6Y*/
         p = (caddr_t)in6pcb.in6p_queue.cqe_next;
 	if (p == first) break;
-#elif !defined(freebsd3) && !defined(darwin)
-        p = (caddr_t)in6pcb.in6p_next;
 #elif defined(__DragonFly__)
         xig = (struct xinpcb *) ((char *) xig + xig->xi_len);
+#elif !defined(freebsd3) && !defined(darwin)
+        p = (caddr_t)in6pcb.in6p_next;
 #else
         xig = (struct xinpgen *) ((char *) xig + xig->xig_len);
 #endif
@@ -1510,6 +1750,12 @@ var_udp6(register struct variable * vp,
                 ntohs(*(uint16_t *) & in6pcb.inp_laddr6.s6_addr[2]);
         else
             long_return = 0;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+        if (IN6_IS_ADDR_LINKLOCAL(&in6pcb.in6p_ip6.ip6_src))
+            long_return =
+                ntohs(*(uint16_t *) & in6pcb.in6p_ip6.ip6_src.s6_addr[2]);
+        else
+            long_return = 0;
 #else
         if (IN6_IS_ADDR_LINKLOCAL(&in6pcb.in6p_laddr))
             long_return =
@@ -1524,6 +1770,7 @@ var_udp6(register struct variable * vp,
     ERROR_MSG("");
     return NULL;
 }
+#endif /* KVM_GETFILES */
 
 #ifdef TCP6
 u_char         *
@@ -1548,8 +1795,6 @@ var_tcp6(register struct variable * vp,
 #elif defined(freebsd3) || defined(darwin)
     char           *sysctl_buf;
     struct xinpgen *xig, *oxig;
-#else
-    static struct in6pcb tcb6;
 #endif
 
     if (!initialized) {
@@ -1576,9 +1821,13 @@ var_tcp6(register struct variable * vp,
         return NULL;
     first = p = (caddr_t)tcbtable.inpt_queue.cqh_first;
 #elif !defined(freebsd3) && !defined(darwin)
+    {
+    static struct in6pcb tcb6;
+
     if (!auto_nlist("tcb6", (char *) &tcb6, sizeof(tcb6)))
         return NULL;
     p = (caddr_t) tcb6.in6p_next;
+    }
 #else
     {
         const char     *tcblist = "net.inet.tcp.pcblist";
@@ -1627,6 +1876,9 @@ var_tcp6(register struct variable * vp,
 #if defined(__NetBSD__) && __NetBSD_Version__ >= 106250000	/*1.6Y*/
         if (in6pcb.in6p_af != AF_INET6)
             goto skip;
+#elif defined(INP_ISIPV6)
+	if (!INP_ISIPV6(&in6pcb))
+	    goto skip;
 #elif defined(freebsd3) || defined(darwin)
         if (0 == (in6pcb.inp_vflag & INP_IPV6))
             goto skip;
@@ -1718,6 +1970,106 @@ var_tcp6(register struct variable * vp,
     return NULL;
 }
 
+#elif defined(HAVE_KVM_GETFILES)
+
+u_char         *
+var_tcp6(register struct variable * vp,
+         oid * name,
+         size_t * length,
+         int exact, size_t * var_len, WriteMethod ** write_method)
+{
+    oid             newname[MAX_OID_LEN];
+    oid             savname[MAX_OID_LEN];
+    int             result, count, found, savnameLen, savstate;
+    int             p, i, j;
+    u_char         *lsa, *fsa;
+    struct kinfo_file *tcp;
+    static int      tcp6statemap[16];
+    static int      initialized = 0;
+
+    if (!initialized) {
+        tcp6statemap[TCPS_CLOSED] = 1;
+        tcp6statemap[TCPS_LISTEN] = 2;
+        tcp6statemap[TCPS_SYN_SENT] = 3;
+        tcp6statemap[TCPS_SYN_RECEIVED] = 4;
+        tcp6statemap[TCPS_ESTABLISHED] = 5;
+        tcp6statemap[TCPS_CLOSE_WAIT] = 8;
+        tcp6statemap[TCPS_FIN_WAIT_1] = 6;
+        tcp6statemap[TCPS_CLOSING] = 10;
+        tcp6statemap[TCPS_LAST_ACK] = 9;
+        tcp6statemap[TCPS_FIN_WAIT_2] = 7;
+        tcp6statemap[TCPS_TIME_WAIT] = 11;
+        initialized++;
+    }
+
+    tcp = kvm_getfiles(kd, KERN_FILE_BYFILE, DTYPE_SOCKET, sizeof(struct kinfo_file), &count);
+    found = savnameLen = 0;
+    memcpy(newname, vp->name, (int) vp->namelen * sizeof(oid));
+    for (p = 0; p < count; p++) {
+	if (tcp[p].so_protocol != IPPROTO_TCP || tcp[p].so_family != AF_INET6)
+	    continue;
+	j = vp->namelen;
+        lsa = (u_char *)&tcp[p].inp_laddru[0];
+	for (i = 0; i < sizeof(struct in6_addr); i++)
+            newname[j++] = lsa[i];
+        newname[j++] = ntohs(tcp[p].inp_lport);
+        fsa = (u_char *)&tcp[p].inp_faddru[0];
+	for (i = 0; i < sizeof(struct in6_addr); i++)
+            newname[j++] = fsa[i];
+        newname[j++] = ntohs(tcp[p].inp_fport);
+        if (IN6_IS_ADDR_LINKLOCAL((struct in6_addr *)lsa))
+            newname[j++] = ntohs(lsa[2]);
+        else
+            newname[j++] = 0;
+        DEBUGMSGTL(("mibII/ipv6", "var_udp6 new: %d %d ",
+                    (int) vp->namelen, j));
+        DEBUGMSGOID(("mibII/ipv6", newname, j));
+        DEBUGMSG(("mibII/ipv6", " %d\n", exact));
+
+        result = snmp_oid_compare(name, *length, newname, j);
+        if (exact && result == 0) {
+                savnameLen = j;
+                memcpy(savname, newname, j * sizeof(oid));
+                savstate = tcp[p].t_state;
+                found++;
+                break;
+        } else if (!exact && result < 0) {
+            /*
+             *  take the least greater one
+             */
+            if (savnameLen == 0 || snmp_oid_compare(savname, savnameLen, newname, j) > 0) {
+                savnameLen = j;
+                memcpy(savname, newname, j * sizeof(oid));
+                savstate = tcp[p].t_state;
+		found++;
+            }
+        }
+    }
+    DEBUGMSGTL(("mibII/ipv6", "found=%d\n", found));
+    if (!found)
+        return NULL;
+    *length = savnameLen;
+    memcpy((char *) name, (char *) savname, *length * sizeof(oid));
+    *write_method = 0;
+    *var_len = sizeof(long);    /* default to 'long' results */
+
+/*
+ *     DEBUGMSGTL(("mibII/ipv6", "var_udp6 found: "));
+ *     DEBUGMSGOID(("mibII/ipv6", name, *length));
+ *     DEBUGMSG(("mibII/ipv6", " %d\n", exact));
+ */
+    DEBUGMSGTL(("mibII/ipv6", "magic=%d\n", vp->magic));
+    switch (vp->magic) {
+    case IPV6TCPCONNSTATE:
+	long_return = tcp6statemap[savstate & 0x0F];
+        return (u_char *) &long_return;
+    default:
+        break;
+    }
+    ERROR_MSG("");
+    return NULL;
+}
+
 #else  /* ! TCP6 */
 
 static int mapTcpState( int val)
@@ -1756,7 +2108,7 @@ var_tcp6(register struct variable * vp,
     int             result;
     int             i, j;
     caddr_t         p;
-#if defined(openbsd4)
+#if defined(openbsd4) || defined(freebsd3)
     static struct inpcb in6pcb, savpcb;
 #else
     static struct in6pcb in6pcb, savpcb;
@@ -1773,7 +2125,6 @@ var_tcp6(register struct variable * vp,
 #elif defined(freebsd3) || defined(darwin)
     char           *sysctl_buf;
     struct xinpgen *xig, *oxig;
-    static struct in6pcb tcb6;
 #endif
 
     DEBUGMSGTL(("mibII/ipv6", "var_tcp6: "));
@@ -1783,11 +2134,13 @@ var_tcp6(register struct variable * vp,
 #if defined(__NetBSD__) && __NetBSD_Version__ >= 106250000 || defined(openbsd4)	/*1.6Y*/
     if (!auto_nlist("tcbtable", (char *) &tcbtable, sizeof(tcbtable)))
         return NULL;
+#ifdef openbsd5
+    first = p = (caddr_t)TAILQ_FIRST(&tcbtable.inpt_queue);
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 700000001
+    first = p = (caddr_t)tcbtable.inpt_queue.tqh_first;
+#else
     first = p = (caddr_t)tcbtable.inpt_queue.cqh_first;
-#elif !defined(freebsd3) && !defined(darwin)
-    if (!auto_nlist("tcb6", (char *) &tcb6, sizeof(tcb6)))
-        return NULL;
-    p = (caddr_t) tcb6.in6p_next;
+#endif
 #elif defined(dragonfly)
     {
         const char     *tcblist = "net.inet.tcp.pcblist";
@@ -1808,6 +2161,14 @@ var_tcp6(register struct variable * vp,
 	    return NULL;
 	}
         p = (caddr_t) ((char *) xtp); /* silence compiler warning */
+    }
+#elif !defined(freebsd3) && !defined(darwin)
+    {
+    static struct in6pcb tcb6;
+
+    if (!auto_nlist("tcb6", (char *) &tcb6, sizeof(tcb6)))
+        return NULL;
+    p = (caddr_t) tcb6.in6p_next;
     }
 #else
     {
@@ -1846,21 +2207,32 @@ var_tcp6(register struct variable * vp,
         ) {
         DEBUGMSGTL(("mibII/ipv6", "looping: p=%p\n", p));
 
-#if !defined(freebsd3) && !defined(darwin)
+#if defined(freebsd3)
+	/* To do: fill in in6pcb properly. */
+	memset(&in6pcb, 0, sizeof(in6pcb));
+#elif defined(dragonfly)
+	in6pcb = xtp->xt_inp;
+#elif defined(darwin)
+        in6pcb = ((struct xinpcb *) xig)->xi_inp;
+#else
         if (!NETSNMP_KLOOKUP(p, (char *) &in6pcb, sizeof(in6pcb))) {
             DEBUGMSGTL(("mibII/ipv6", "klookup fail for tcb6 at %p\n",
                         p));
             found = 0;
             break;
         }
-#elif defined(dragonfly)
-	in6pcb = xtp->xt_inp;
-#else
-        in6pcb = ((struct xinpcb *) xig)->xi_inp;
 #endif
 #if defined(__NetBSD__) && __NetBSD_Version__ >= 106250000	/*1.6Y*/
+# if __NetBSD_Version__ < 999010400
         if (in6pcb.in6p_af != AF_INET6)
             goto skip;
+# else
+        if (in6pcb.in6p_pcb.inp_af != AF_INET6)
+	    goto skip;
+# endif
+#elif defined(INP_ISIPV6)
+	if (!INP_ISIPV6(&in6pcb))
+	    goto skip;
 #elif defined(freebsd3) || defined(darwin)
         if (0 == (in6pcb.inp_vflag & INP_IPV6))
             goto skip;
@@ -1879,6 +2251,18 @@ var_tcp6(register struct variable * vp,
         if (IN6_IS_ADDR_LINKLOCAL(&in6pcb.inp_laddr6))
             newname[j++] =
                 ntohs(*(uint16_t *) &in6pcb.inp_laddr6.s6_addr[2]);
+        else
+            newname[j++] = 0;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+        for (i = 0; i < sizeof(struct in6_addr); i++)
+            newname[j++] = in6pcb.in6p_ip6.ip6_src.s6_addr[i];
+        newname[j++] = ntohs(in6pcb.in6p_pcb.inp_lport);
+        for (i = 0; i < sizeof(struct in6_addr); i++)
+            newname[j++] = in6pcb.in6p_ip6.ip6_dst.s6_addr[i];
+        newname[j++] = ntohs(in6pcb.in6p_pcb.inp_fport);
+        if (IN6_IS_ADDR_LINKLOCAL(&in6pcb.in6p_ip6.ip6_src))
+            newname[j++] =
+                ntohs(*(uint16_t *) &in6pcb.in6p_ip6.ip6_src.s6_addr[2]);
         else
             newname[j++] = 0;
 #else
@@ -1901,7 +2285,11 @@ var_tcp6(register struct variable * vp,
         DEBUGMSG(("mibII/ipv6", " %d\n", exact));
 
 #if 1                           /* this is very odd but sometimes happen, and cause infinite loop */
+#if defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+        if (ntohs(in6pcb.in6p_pcb.inp_lport) == 0)
+#else
         if (ntohs(in6pcb.inp_lport) == 0)
+#endif
             goto skip;
 #endif
         result = snmp_oid_compare(name, *length, newname, j);
@@ -1925,16 +2313,25 @@ var_tcp6(register struct variable * vp,
         }
 
       skip:
-#if defined(openbsd4)
+#ifdef openbsd5
+        p = (caddr_t)TAILQ_NEXT(&in6pcb, inp_queue);
+        if (p == NULL) break;
+#elif defined(openbsd4)
         p = (caddr_t)in6pcb.inp_queue.cqe_next;
+	if (p == first) break;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+        p = (caddr_t)in6pcb.in6p_pcb.inp_queue.tqe_next;
+        if (p == first) break;
+#elif defined(__NetBSD__) && __NetBSD_Version__ >= 700000001
+        p = (caddr_t)in6pcb.in6p_queue.tqe_next;
 	if (p == first) break;
 #elif defined(__NetBSD__) && __NetBSD_Version__ >= 106250000 || defined(openbsd4)	/*1.6Y*/
         p = (caddr_t)in6pcb.in6p_queue.cqe_next;
 	if (p == first) break;
-#elif !defined(freebsd3) && !defined(darwin)
-        p = (caddr_t) in6pcb.in6p_next;
 #elif defined(dragonfly)
 	xtp = (struct xtcpcb *) ((char *)xtp + xtp->xt_len);
+#elif !defined(freebsd3) && !defined(darwin)
+        p = (caddr_t) in6pcb.in6p_next;
 #else
         xig = (struct xinpgen *) ((char *) xig + xig->xig_len);
 #endif
@@ -1948,9 +2345,15 @@ var_tcp6(register struct variable * vp,
     *length = savnameLen;
     memcpy((char *) name, (char *) savname, *length * sizeof(oid));
     memcpy(&in6pcb, &savpcb, sizeof(savpcb));
+#if defined(__NetBSD__) && __NetBSD_Version__ >= 999010400
+    if (!NETSNMP_KLOOKUP(in6pcb.in6p_pcb.inp_ppcb, (char *) &tcpcb, sizeof(tcpcb))) {
+        DEBUGMSGTL(("mibII/ipv6", "klookup fail for tcb6.tcpcb at %p\n",
+                    in6pcb.in6p_pcb.inp_ppcb));
+#else
     if (!NETSNMP_KLOOKUP(in6pcb.inp_ppcb, (char *) &tcpcb, sizeof(tcpcb))) {
 	DEBUGMSGTL(("mibII/ipv6", "klookup fail for tcb6.tcpcb at %p\n",
 		    in6pcb.inp_ppcb));
+#endif
 	found = 0;
 	return NULL;
     }
@@ -2242,12 +2645,18 @@ linux_if_nameindex(void)
         if_count = 0;
         maxidx = -1;
         while (!feof(f)) {
-            if (fscanf(f, "%*s %lx %*x %*x %*x %s",
+            if (fscanf(f, "%*s %lx %*x %*x %*x %255s",
                        &if_index, if_name) != 2)
                 continue;
             if (if_index == 0)
                 continue;
             if_name[sizeof(if_name) - 1] = '\0';
+            /*
+             * Large if_index values can cause the multiplication in the
+             * realloc() statement to overflow. Hence check if_index.
+             */
+            if (if_index > 65536)
+                break;
             if (maxidx < 0 || maxidx < if_index) {
                 if (last_if_count < if_index)
                     last_if_count = if_index;

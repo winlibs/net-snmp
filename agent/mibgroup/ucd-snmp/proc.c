@@ -6,46 +6,47 @@
 #include <sys/types.h>          /* helps define struct rlimit */
 #endif
 
-#if HAVE_IO_H                   /* win32 */
+#ifdef HAVE_IO_H                   /* win32 */
 #include <io.h>
 #endif
-#if HAVE_STDLIB_H
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_MALLOC_H
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
 #include <math.h>
 #include <ctype.h>
 #include <sys/types.h>
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_KVM_H
-#include <kvm.h>
+#ifdef HAVE_PCRE_H
+#include <pcre.h>
 #endif
 
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 
+#include "mibdefs.h"
 #include "struct.h"
 #include "proc.h"
 #ifdef USING_HOST_DATA_ACCESS_SWRUN_MODULE
@@ -57,7 +58,10 @@
 #define setPerrorstatus(x) snmp_log_perror(x)
 #endif
 #include "util_funcs.h"
-#include "kernel.h"
+
+#define PROCMIN 3
+#define PROCMAX 4
+#define PROCCOUNT 5
 
 static struct myproc *get_proc_instance(struct myproc *, oid);
 struct myproc  *procwatch = NULL;
@@ -67,7 +71,6 @@ int             numprocs = 0;
 void
 init_proc(void)
 {
-
     /*
      * define the structure we're going to ask the agent to register our
      * information at 
@@ -105,9 +108,14 @@ init_proc(void)
     REGISTER_MIB("ucd-snmp/proc", extensible_proc_variables, variable2,
                  proc_variables_oid);
 
+#ifdef HAVE_PCRE_H
+#define proc_parse_usage "process-name [max-num] [min-num] [regexp]"
+#else
+#define proc_parse_usage "process-name [max-num] [min-num]"
+#endif
+
     snmpd_register_config_handler("proc", proc_parse_config,
-                                  proc_free_config,
-                                  "process-name [max-num] [min-num]");
+                                  proc_free_config, proc_parse_usage);
     snmpd_register_config_handler("procfix", procfix_parse_config, NULL,
                                   "process-name program [arguments...]");
 }
@@ -126,6 +134,9 @@ proc_free_config(void)
     for (ptmp = procwatch; ptmp != NULL;) {
         ptmp2 = ptmp;
         ptmp = ptmp->next;
+#ifdef HAVE_PCRE_H
+        free(ptmp2->regexp.regex_ptr);
+#endif
         free(ptmp2);
     }
     procwatch = NULL;
@@ -168,7 +179,7 @@ procfix_parse_config(const char *token, char *cptr)
         return;
     }
 
-    strcpy(procp->fixcmd, cptr);
+    strlcpy(procp->fixcmd, cptr, sizeof(procp->fixcmd));
 }
 
 
@@ -181,7 +192,7 @@ proc_parse_config(const char *token, char *cptr)
     /*
      * don't allow two entries with the same name 
      */
-    copy_nword(cptr, tmpname, sizeof(tmpname));
+    cptr = copy_nword(cptr, tmpname, sizeof(tmpname));
     if (get_proc_by_name(tmpname) != NULL) {
         config_perror("Already have an entry for this process.");
         return;
@@ -197,17 +208,33 @@ proc_parse_config(const char *token, char *cptr)
     if (*procp == NULL)
         return;                 /* memory alloc error */
     numprocs++;
+#ifdef HAVE_PCRE_H
+    (*procp)->regexp.regex_ptr = NULL;
+#endif
     /*
      * not blank and not a comment 
      */
-    copy_nword(cptr, (*procp)->name, sizeof((*procp)->name));
-    cptr = skip_not_white(cptr);
-    if ((cptr = skip_white(cptr))) {
+    strlcpy((*procp)->name, tmpname, sizeof((*procp)->name));
+    if (cptr) {
         (*procp)->max = atoi(cptr);
         cptr = skip_not_white(cptr);
-        if ((cptr = skip_white(cptr)))
+        if ((cptr = skip_white(cptr))) {
             (*procp)->min = atoi(cptr);
-        else
+#ifdef HAVE_PCRE_H
+            cptr = skip_not_white(cptr);
+            if ((cptr = skip_white(cptr))) {
+                const char *pcre_error;
+                int pcre_error_offset;
+
+                DEBUGMSGTL(("ucd-snmp/regexp_proc", "Loading regex %s\n", cptr));
+                (*procp)->regexp.regex_ptr =
+                    pcre_compile(cptr, 0,  &pcre_error, &pcre_error_offset, NULL);
+                if ((*procp)->regexp.regex_ptr == NULL) {
+                    config_perror(pcre_error);
+                }
+            }
+#endif
+        } else
             (*procp)->min = 0;
     } else {
         /* Default to asssume that we require at least one
@@ -238,8 +265,8 @@ var_extensible_proc(struct variable *vp,
 
     struct myproc  *proc;
     static long     long_ret;
-    static char     errmsg[300];
-
+    static char    *errmsg;
+    static char     empty_str[1];
 
     if (header_simple_table
         (vp, name, length, exact, var_len, write_method, numprocs))
@@ -260,10 +287,10 @@ var_extensible_proc(struct variable *vp,
             long_ret = proc->max;
             return ((u_char *) (&long_ret));
         case PROCCOUNT:
-            long_ret = sh_count_procs(proc->name);
+            long_ret = sh_count_myprocs(proc);
             return ((u_char *) (&long_ret));
         case ERRORFLAG:
-            long_ret = sh_count_procs(proc->name);
+            long_ret = sh_count_myprocs(proc);
             if (long_ret >= 0 &&
                    /* Too few processes running */
                 ((proc->min && long_ret < proc->min) ||
@@ -277,42 +304,39 @@ var_extensible_proc(struct variable *vp,
             }
             return ((u_char *) (&long_ret));
         case ERRORMSG:
-            long_ret = sh_count_procs(proc->name);
+            free(errmsg);
+            errmsg = NULL;
+            long_ret = sh_count_myprocs(proc);
             if (long_ret < 0) {
-                errmsg[0] = 0;  /* catch out of mem errors return 0 count */
+                /* catch out of mem errors return 0 count */
             } else if (proc->min && long_ret < proc->min) {
-                if ( long_ret > 0 )
-                    snprintf(errmsg, sizeof(errmsg),
-                        "Too few %s running (# = %d)",
-                        proc->name, (int) long_ret);
-                else
-                    snprintf(errmsg, sizeof(errmsg),
-                        "No %s process running", proc->name);
+                if (long_ret > 0) {
+                    if (asprintf(&errmsg, "Too few %s running (# = %d)",
+                                 proc->name, (int) long_ret) < 0) {
+                    }
+                } else {
+                    if (asprintf(&errmsg, "No %s process running", proc->name)
+                        < 0) {
+                    }
+                }
             } else if (proc->max && long_ret > proc->max) {
-                snprintf(errmsg, sizeof(errmsg),
-                        "Too many %s running (# = %d)",
-                        proc->name, (int) long_ret);
+                if (asprintf(&errmsg, "Too many %s running (# = %d)",
+                             proc->name, (int) long_ret) < 0) {
+                }
             } else if (proc->min == 0 && proc->max == 0 && long_ret > 0) {
-                snprintf(errmsg, sizeof(errmsg),
-                        "%s process should not be running.", proc->name);
-            } else {
-                errmsg[0] = 0;
+                if (asprintf(&errmsg, "%s process should not be running.",
+                             proc->name) < 0) {
+                }
             }
-            errmsg[ sizeof(errmsg)-1 ] = 0;
-            *var_len = strlen(errmsg);
-            return ((u_char *) errmsg);
+            *var_len = errmsg ? strlen(errmsg) : 0;
+            return (u_char *)(errmsg ? errmsg : empty_str);
         case ERRORFIX:
             *write_method = fixProcError;
             long_return = fixproc.result;
             return ((u_char *) & long_return);
         case ERRORFIXCMD:
-            if (proc->fixcmd) {
-                *var_len = strlen(proc->fixcmd);
-                return (u_char *) proc->fixcmd;
-            }
-            errmsg[0] = 0;
-            *var_len = 0;
-            return ((u_char *) errmsg);
+            *var_len = strlen(proc->fixcmd);
+            return (u_char *) proc->fixcmd;
         }
         return NULL;
     }
@@ -338,7 +362,8 @@ fixProcError(int action,
         tmp = *((long *) var_val);
         if (tmp == 1 && action == COMMIT) {
             if (proc->fixcmd[0]) {
-                strcpy(fixproc.command, proc->fixcmd);
+                free(fixproc.command);
+                fixproc.command = strdup(proc->fixcmd);
                 exec_command(&fixproc);
             }
         }
@@ -359,13 +384,37 @@ get_proc_instance(struct myproc *proc, oid inst)
     return (proc);
 }
 
+int
+sh_count_myprocs(struct myproc *proc)
+{
+    if (proc == NULL)
+        return 0;
+
+#if defined(USING_HOST_DATA_ACCESS_SWRUN_MODULE) && defined(HAVE_PCRE_H)
+    if (proc->regexp.regex_ptr != NULL)
+      return sh_count_procs_by_regex(proc->name, proc->regexp);
+#endif
+
+    return sh_count_procs(proc->name);
+}
+
 #ifdef USING_HOST_DATA_ACCESS_SWRUN_MODULE
-netsnmp_feature_require(swrun_count_processes_by_name)
+netsnmp_feature_require(swrun_count_processes_by_name);
 int
 sh_count_procs(char *procname)
 {
-    return swrun_count_processes_by_name( procname );
+  return swrun_count_processes_by_name( procname );
 }
+
+#ifdef HAVE_PCRE_H
+netsnmp_feature_require(swrun_count_processes_by_regex);
+int
+sh_count_procs_by_regex(char *procname, netsnmp_regex_ptr regexp)
+{
+  return swrun_count_processes_by_regex( procname, regexp );
+}
+#endif
+
 #else
 
 #ifdef bsdi2
@@ -794,17 +843,13 @@ sh_count_procs(char *procname)
     if (kvm_setproc(kd) < 0) {
         return (-1);
     }
-    kvm_setproc(kd);
     total = 0;
     while ((p = kvm_nextproc(kd)) != NULL) {
-        if (!p) {
-            return (-1);
-        }
         u = kvm_getu(kd, p);
         /*
          * Skip this entry if u or u->u_comm is a NULL pointer 
          */
-        if (!u) {
+        if (!u || !u->u_comm) {
             continue;
         }
         if (strcmp(procname, u->u_comm) == 0)
@@ -814,7 +859,7 @@ sh_count_procs(char *procname)
 }
 #endif                          /* _SLASH_PROC_METHOD_ */
 #else
-netsnmp_feature_require(find_field)
+netsnmp_feature_require(find_field);
 int
 sh_count_procs(char *procname)
 {
@@ -826,7 +871,7 @@ sh_count_procs(char *procname)
     struct extensible ex;
     int             slow = strstr(PSCMD, "ax") != NULL;
 
-    strcpy(ex.command, PSCMD);
+    ex.command = strdup(PSCMD);
     if ((fd = get_exec_output(&ex)) >= 0) {
         if ((file = fdopen(fd, "r")) == NULL) {
             setPerrorstatus("fdopen");

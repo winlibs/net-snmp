@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Make sure MinGW32 users have the pskill.exe program to stop the agent and
+# snmptrapd
+case $(uname) in
+MINGW32*)
+    for e in pskill.exe pslist.exe; do
+	if [ "x`type $e 2>/dev/null`" = "x" ]; then
+	    echo "Could not find $e. Aborting tests."
+	    echo "$e can be installed as follows:"
+	    echo -- "- Download PSTools.zip from http://technet.microsoft.com/en-us/sysinternals/default."
+	    echo -- "- Copy $e to C:\\MinGW\\msys\\1.0\\bin."
+	    exit 1
+	fi
+    done
+    ;;
+esac

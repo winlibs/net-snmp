@@ -18,9 +18,10 @@
 #include "ip-forward-mib/data_access/route_ioctl.h"
 #include "ip-forward-mib/inetCidrRouteTable/inetCidrRouteTable_constants.h"
 #include "if-mib/data_access/interface_ioctl.h"
+#include "route_private.h"
 
-static int _load_v4(netsnmp_container *container, u_long *count);
-static int _load_v6(netsnmp_container *container, u_long *count);
+static int _load_v4(netsnmp_container *container);
+static int _load_v6(netsnmp_container *container);
 
 /** arch specific load
  * @internal
@@ -33,7 +34,6 @@ int
 netsnmp_access_route_container_arch_load(netsnmp_container* container,
                                          u_int load_flags)
 {
-    u_long          count = 0;
     int             rc;
 
     DEBUGMSGTL(("access:route:container",
@@ -44,7 +44,7 @@ netsnmp_access_route_container_arch_load(netsnmp_container* container,
         return -1;
     }
 
-    rc = _load_v4(container, &count);
+    rc = _load_v4(container);
     
 #ifdef NETSNMP_ENABLE_IPV6
     if((0 != rc) || (load_flags & NETSNMP_ACCESS_ROUTE_LOAD_IPV4_ONLY))
@@ -54,7 +54,7 @@ netsnmp_access_route_container_arch_load(netsnmp_container* container,
      * load ipv6. ipv6 module might not be loaded,
      * so ignore -2 err (file not found)
      */
-    rc = _load_v6(container, &count);
+    rc = _load_v6(container);
     if (-2 == rc)
         rc = 0;
 #endif
@@ -147,7 +147,7 @@ IP6_Cmp_Route(void *addr, void *ep)
 }
 
 
-static int _load_v4(netsnmp_container *container, u_long *count)
+static int _load_v4(netsnmp_container *container)
 {
     netsnmp_route_entry *entry;
     mib2_ipRouteEntry_t Curentry, Nextentry;
@@ -196,13 +196,12 @@ static int _load_v4(netsnmp_container *container, u_long *count)
 	    netsnmp_access_route_entry_free(entry);
 	    continue;
 	}
-	*count++;
     }
     return 0;
 }
 
 
-static int _load_v6(netsnmp_container *container, u_long *count)
+static int _load_v6(netsnmp_container *container)
 {
     netsnmp_route_entry *entry;
     mib2_ipv6RouteEntry_t Curentry, Nextentry;
@@ -252,7 +251,6 @@ static int _load_v6(netsnmp_container *container, u_long *count)
 	    netsnmp_access_route_entry_free(entry);
 	    continue;
 	}
-	*count++;
     }
     return 0;
 }

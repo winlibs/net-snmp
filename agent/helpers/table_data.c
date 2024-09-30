@@ -1,3 +1,14 @@
+/*
+ * Portions of this file are subject to the following copyright(s).  See
+ * the Net-SNMP's COPYING file for more details and other copyrights
+ * that may apply:
+ *
+ * Portions of this file are copyrighted by:
+ * Copyright (c) 2016 VMware, Inc. All rights reserved.
+ * Use is subject to license terms specified in the COPYING file
+ * distributed with the Net-SNMP package.
+ */
+
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-features.h>
 
@@ -6,7 +17,7 @@
 
 #include <net-snmp/agent/table_data.h>
 
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -15,24 +26,24 @@
 #include <net-snmp/agent/table.h>
 #include <net-snmp/agent/read_only.h>
 
-netsnmp_feature_child_of(table_data_all, mib_helpers)
+netsnmp_feature_child_of(table_data_all, mib_helpers);
 
-netsnmp_feature_child_of(table_data, table_data_all)
-netsnmp_feature_child_of(register_read_only_table_data, table_data_all)
-netsnmp_feature_child_of(extract_table_row_data, table_data_all)
-netsnmp_feature_child_of(insert_table_row, table_data_all)
-netsnmp_feature_child_of(table_data_delete_table, table_data_all)
+netsnmp_feature_child_of(table_data, table_data_all);
+netsnmp_feature_child_of(register_read_only_table_data, table_data_all);
+netsnmp_feature_child_of(extract_table_row_data, table_data_all);
+netsnmp_feature_child_of(insert_table_row, table_data_all);
+netsnmp_feature_child_of(table_data_delete_table, table_data_all);
 
-netsnmp_feature_child_of(table_data_extras, table_data_all)
+netsnmp_feature_child_of(table_data_extras, table_data_all);
 
-netsnmp_feature_child_of(table_data_create_table, table_data_extras)
-netsnmp_feature_child_of(table_data_create_row, table_data_extras)
-netsnmp_feature_child_of(table_data_copy_row, table_data_extras)
-netsnmp_feature_child_of(table_data_remove_delete_row, table_data_extras)
-netsnmp_feature_child_of(table_data_unregister, table_data_extras)
-netsnmp_feature_child_of(table_data_row_count, table_data_extras)
-netsnmp_feature_child_of(table_data_row_operations, table_data_extras)
-netsnmp_feature_child_of(table_data_row_first, table_data_extras)
+netsnmp_feature_child_of(table_data_create_table, table_data_extras);
+netsnmp_feature_child_of(table_data_create_row, table_data_extras);
+netsnmp_feature_child_of(table_data_copy_row, table_data_extras);
+netsnmp_feature_child_of(table_data_remove_delete_row, table_data_extras);
+netsnmp_feature_child_of(table_data_unregister, table_data_extras);
+netsnmp_feature_child_of(table_data_row_count, table_data_extras);
+netsnmp_feature_child_of(table_data_row_operations, table_data_extras);
+netsnmp_feature_child_of(table_data_row_first, table_data_extras);
 
 #ifndef NETSNMP_FEATURE_REMOVE_TABLE_DATA
 
@@ -430,7 +441,15 @@ netsnmp_register_table_data(netsnmp_handler_registration *reginfo,
                             netsnmp_table_data *table,
                             netsnmp_table_registration_info *table_info)
 {
-    netsnmp_inject_handler(reginfo, netsnmp_get_table_data_handler(table));
+    netsnmp_mib_handler *handler = netsnmp_get_table_data_handler(table);
+    if (!table || !handler ||
+        (netsnmp_inject_handler(reginfo, handler) != SNMPERR_SUCCESS)) {
+        snmp_log(LOG_ERR, "could not create table data handler\n");
+        netsnmp_handler_free(handler);
+        netsnmp_handler_registration_free(reginfo);
+        return MIB_REGISTRATION_FAILED;
+    }
+
     return netsnmp_register_table(reginfo, table_info);
 }
 
@@ -443,7 +462,15 @@ netsnmp_register_read_only_table_data(netsnmp_handler_registration *reginfo,
                                       netsnmp_table_data *table,
                                       netsnmp_table_registration_info *table_info)
 {
-    netsnmp_inject_handler(reginfo, netsnmp_get_read_only_handler());
+    netsnmp_mib_handler *handler = netsnmp_get_read_only_handler();
+    if (!handler ||
+        (netsnmp_inject_handler(reginfo, handler) != SNMPERR_SUCCESS)) {
+        snmp_log(LOG_ERR, "could not create read only table data handler\n");
+        netsnmp_handler_free(handler);
+        netsnmp_handler_registration_free(reginfo);
+        return MIB_REGISTRATION_FAILED;
+    }
+
     return netsnmp_register_table_data(reginfo, table, table_info);
 }
 #endif /* NETSNMP_FEATURE_REMOVE_REGISTER_READ_ONLY_TABLE_DATA */

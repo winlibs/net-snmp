@@ -8,33 +8,35 @@
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#if TIME_WITH_SYS_TIME
+#ifdef TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
 # endif
 #endif
-#if HAVE_SYS_SOCKET_H
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
 #endif
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 
 #include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/agent/agent_index.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/library/snmp_assert.h>
 
 #include "snmpd.h"
+#include "agent_global_vars.h"
 #include "agentx/protocol.h"
 #include "agentx/client.h"
 #include "agentx/agentx_config.h"
@@ -45,10 +47,10 @@
 
 #include "subagent.h"
 
-netsnmp_feature_child_of(agentx_subagent, agentx_all)
-netsnmp_feature_child_of(agentx_enable_subagent, agentx_subagent)
+netsnmp_feature_child_of(agentx_subagent, agentx_all);
+netsnmp_feature_child_of(agentx_enable_subagent, agentx_subagent);
 
-netsnmp_feature_require(remove_trap_session)
+netsnmp_feature_require(remove_trap_session);
 
 #ifdef USING_AGENTX_SUBAGENT_MODULE
 
@@ -89,8 +91,6 @@ struct agent_netsnmp_set_info {
 static struct agent_netsnmp_set_info *Sets = NULL;
 
 netsnmp_session *agentx_callback_sess = NULL;
-extern int      callback_master_num;
-extern netsnmp_session *main_session;   /* from snmp_agent.c */
 
 int
 subagent_startup(int majorID, int minorID,
@@ -247,6 +247,8 @@ static void
 send_agentx_error(netsnmp_session *session, netsnmp_pdu *pdu, int errstat, int errindex)
 {
     pdu = snmp_clone_pdu(pdu);
+    if (!pdu)
+        return;
     pdu->command   = AGENTX_MSG_RESPONSE;
     pdu->version   = session->version;
     pdu->errstat   = errstat;
@@ -503,6 +505,9 @@ handle_agentx_packet(int operation, netsnmp_session * session, int reqid,
      */
 
     internal_pdu = snmp_clone_pdu(pdu);
+    if (!internal_pdu)
+        return 1;
+    free(internal_pdu->contextName);
     internal_pdu->contextName = (char *) internal_pdu->community;
     internal_pdu->contextNameLen = internal_pdu->community_len;
     internal_pdu->community = NULL;
@@ -548,6 +553,8 @@ handle_subagent_response(int op, netsnmp_session * session, int reqid,
     }
 
     pdu = snmp_clone_pdu(pdu);
+    if (!pdu)
+        return 1;
     DEBUGMSGTL(("agentx/subagent",
                 "handling AgentX response (cmd 0x%02x orig_cmd 0x%02x)"
                 " (req=0x%x,trans=0x%x,sess=0x%x)\n",
@@ -642,6 +649,8 @@ handle_subagent_set_response(int op, netsnmp_session * session, int reqid,
                 (unsigned)pdu->command, (unsigned)pdu->reqid,
 		(unsigned)pdu->transid, (unsigned)pdu->sessid));
     pdu = snmp_clone_pdu(pdu);
+    if (!pdu)
+        return 1;
 
     asi = (struct agent_netsnmp_set_info *) magic;
     retsess = asi->sess;
@@ -675,11 +684,13 @@ handle_subagent_set_response(int op, netsnmp_session * session, int reqid,
         pdu->variables = NULL;  /* the variables were added by us */
     }
 
-    netsnmp_assert(retsess != NULL);
-    pdu->command = AGENTX_MSG_RESPONSE;
-    pdu->version = retsess->version;
+    if (retsess && pdu) {
+        pdu->command = AGENTX_MSG_RESPONSE;
+        pdu->version = retsess->version;
 
-    if (!snmp_send(retsess, pdu)) {
+        if (!snmp_send(retsess, pdu))
+            snmp_free_pdu(pdu);
+    } else if (pdu) {
         snmp_free_pdu(pdu);
     }
     DEBUGMSGTL(("agentx/subagent", "  FINISHED\n"));
@@ -744,11 +755,11 @@ subagent_shutdown(int majorID, int minorID, void *serverarg, void *clientarg)
 	return 0;
     }
     agentx_close_session(thesession, AGENTX_CLOSE_SHUTDOWN);
-    snmp_close(thesession);
     if (main_session != NULL) {
         remove_trap_session(main_session);
         main_session = NULL;
     }
+    snmp_close(thesession);
     DEBUGMSGTL(("agentx/subagent", "shut down finished.\n"));
 
     subagent_init_init = 0;
@@ -870,6 +881,8 @@ subagent_open_master_session(void)
                       agentx_realloc_build, agentx_check_packet, NULL);
 
     if (main_session == NULL) {
+        /* snmp_add_full() frees 't' upon failure. */
+        t = NULL;
         if (!netsnmp_ds_get_boolean(NETSNMP_DS_APPLICATION_ID,
                                     NETSNMP_DS_AGENT_NO_CONNECTION_WARNINGS)) {
             char buf[1024];

@@ -5,7 +5,8 @@
 extern "C" {
 #endif
 
-RETSIGTYPE      restart_doit(int);
+extern char **argvrestartp, *argvrestartname, *argvrestart;
+
 WriteMethod     restart_hook;
 
 #ifdef __cplusplus

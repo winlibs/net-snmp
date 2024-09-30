@@ -10,6 +10,7 @@
 #include <net-snmp/data_access/defaultrouter.h>
 
 #include "ip-mib/ipDefaultRouterTable/ipDefaultRouterTable.h"
+#include "defaultrouter_private.h"
 
 #include <asm/types.h>
 #ifdef HAVE_LINUX_RTNETLINK_H
@@ -270,6 +271,11 @@ _load(netsnmp_container *container)
 
                 rtap = RTA_NEXT(rtap, rtcount);
             } /* while RTA_OK(rtap) */
+
+	    /* clip the calculated lifetime if necessary */
+	    if (lifetime > IPDEFAULTROUTERLIFETIME_MAX) {
+		lifetime = IPDEFAULTROUTERLIFETIME_MAX;
+	    }
 
             if (address_len != 0 && if_index != -1 &&
                 lifetime != 0 && preference != -3 ) {

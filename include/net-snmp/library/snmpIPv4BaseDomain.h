@@ -3,22 +3,30 @@
 #ifndef SNMPIPV4BASE_H
 #define SNMPIPV4BASE_H
 
-#if HAVE_NETINET_IN_H
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
 
 #include <net-snmp/library/snmp_transport.h>
 
+config_require(IPBase);
+
 #ifdef __cplusplus
 extern          "C" {
 #endif
+
+    struct netsnmp_ep;
 
 /*
  * Prototypes
  */
 
     char *netsnmp_ipv4_fmtaddr(const char *prefix, netsnmp_transport *t,
-                               void *data, int len);
+                               const void *data, int len);
+    void netsnmp_ipv4_get_taddr(struct netsnmp_transport_s *t, void **addr,
+                                size_t *addr_len);
+    int netsnmp_ipv4_ostring_to_sockaddr(struct sockaddr_in *sin,
+                                         const void *o, size_t o_len);
 
 /*
  * Convert a "traditional" peername into a sockaddr_in structure which is
@@ -30,6 +38,9 @@ extern          "C" {
                             int remote_port);
     int netsnmp_sockaddr_in2(struct sockaddr_in *addr, const char *inpeername,
                              const char *default_target);
+    int
+    netsnmp_sockaddr_in3(struct netsnmp_ep *ep,
+                         const char *inpeername, const char *default_target);
 
 #ifdef __cplusplus
 }

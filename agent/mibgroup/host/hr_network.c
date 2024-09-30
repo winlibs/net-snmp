@@ -8,7 +8,7 @@
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/data_access/interface.h>
-#if HAVE_STRING_H
+#ifdef HAVE_STRING_H
 #include <string.h>
 #else
 #include <strings.h>
@@ -24,7 +24,7 @@
 #include "hr_network.h"
 
 #if !defined( solaris2 )
-netsnmp_feature_require(interface_legacy)
+netsnmp_feature_require(interface_legacy);
 #endif /* !solaris2 */
 
         /*********************
@@ -257,7 +257,7 @@ int      HRN_index;
 void
 Save_HR_Network_Info(void)
 {
-    strcpy(HRN_savedName, HRN_name);
+    strlcpy(HRN_savedName, HRN_name, sizeof(HRN_savedName));
 #if defined( USING_IF_MIB_IFTABLE_IFTABLE_DATA_ACCESS_MODULE )
     HRN_savedFlags  = HRN_ifnet->os_flags;
     HRN_savedErrors = HRN_ifnet->stats.ierrors + HRN_ifnet->stats.oerrors;
@@ -299,8 +299,10 @@ network_status(int idx)
         return 2;               /* running */
     else
         return 5;               /* down */
+#else
+    /* To do: implement network_status() for Windows. */
+    return 2;                   /* running */
 #endif /* WIN32 */
-
 }
 
 int
