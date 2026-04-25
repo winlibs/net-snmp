@@ -1005,16 +1005,24 @@
 #define RETSIGTYPE void
 
 /* The size of a `int', as computed by sizeof. */
-#define SIZEOF_INT 4
+#ifndef SIZEOF_INT
+# define SIZEOF_INT 4
+#endif
 
 /* The size of a `long', as computed by sizeof. */
-#define SIZEOF_LONG 4
+#ifndef SIZEOF_LONG
+# define SIZEOF_LONG 4
+#endif
 
 /* The size of a `intmax_t', as computed by sizeof. */
-#define SIZEOF_INTMAX_T 8
+#ifndef SIZEOF_INTMAX_T
+# define SIZEOF_INTMAX_T 8
+#endif
 
 /* The size of a `short', as computed by sizeof. */
-#define SIZEOF_SHORT 2
+#ifndef SIZEOF_SHORT
+# define SIZEOF_SHORT 2
+#endif
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
@@ -1042,7 +1050,9 @@
 
 /* Define as `__inline' if that's what the C compiler calls it, or to nothing
    if it is not supported. */
-#define inline __inline
+#ifndef PHP_WIN32
+# define inline __inline
+#endif
 
 /* Define to `long' if <sys/types.h> does not define. */
 /* #undef off_t */
@@ -1391,7 +1401,7 @@
 
 #ifdef __MINGW32__
 /* got ssize_t? */
-#define HAVE_SSIZE_T
+# define HAVE_SSIZE_T
 #endif
 
 /* If you have openssl 0.9.7 or above, you likely have AES support. */
@@ -1777,15 +1787,11 @@ enum {
 /* MSVC OpenSSL linker settings. */
 #if defined(_MSC_VER)
 #  if defined(NETSNMP_USE_OPENSSL)
-#    ifdef _DLL
-#      pragma comment(lib, "libcrypto.lib")
-#      pragma comment(lib, "libssl.lib")
-#    else
-#      pragma comment(lib, "libcrypto_static.lib")
-#      pragma comment(lib, "libssl_static.lib")
-#    endif
+#    pragma comment(lib, "libcrypto.lib")
+#    pragma comment(lib, "libssl.lib")
 #    pragma comment(lib, "gdi32.lib")
 #    pragma comment(lib, "user32.lib")
+#    pragma comment(lib, "advapi32.lib")
 #  endif
 #endif
 
@@ -1816,10 +1822,9 @@ enum {
 #endif
 
 #ifdef _MSC_VER
-/* Windows Vista and higher have inet_ntop but older Windows does not.
- * We'll use the Net-SNMP version instead. */
-#undef HAVE_INET_NTOP
-#undef HAVE_INET_PTON
+/* Windows Vista and higher have inet_ntop, and we don't support older Windows. */
+#define HAVE_INET_NTOP 1
+#define HAVE_INET_PTON 1
 
 /* IPv6 transports */
 #ifdef NETSNMP_ENABLE_IPV6
