@@ -64,7 +64,7 @@ SOFTWARE.
      */
 #ifndef MSVC_PERL
 
-#if !defined(HAVE_READDIR) && !defined(PHP_WIN32)
+#ifndef HAVE_READDIR
     /*
      * structure of a directory entry 
      */

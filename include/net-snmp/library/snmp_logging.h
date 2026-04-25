@@ -5,11 +5,7 @@
 #include <net-snmp/output_api.h>
 
 #ifdef HAVE_SYSLOG_H
-# ifdef PHP_WIN32
-#  include <win32\syslog.h>
-# else
-#  include <syslog.h>
-# endif
+#include <syslog.h>
 #endif
 #include <stdio.h>
 #include <stdarg.h>
@@ -126,15 +122,6 @@ NETSNMP_IMPORT
 void netsnmp_disable_this_loghandler( netsnmp_log_handler *logh );
 NETSNMP_IMPORT
 void netsnmp_logging_restart(void);
-
-NETSNMP_IMPORT
-netsnmp_log_handler *
-netsnmp_create_stdio_loghandler(int is_stdout, int priority, int priority_max,
-                                const char *tok);
-NETSNMP_IMPORT
-netsnmp_log_handler *
-netsnmp_register_filelog_handler(const char* logfilename, int priority,
-                                 int priority_max, int dont_zero_log);
 
 #ifdef __cplusplus
 }
