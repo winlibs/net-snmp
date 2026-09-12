@@ -4842,7 +4842,7 @@ snmp_get_token(FILE * fp, char *token, int maxtlen)
 #endif /* NETSNMP_FEATURE_REMOVE_PARSE_GET_TOKEN */
 
 int
-add_mibfile(const char* tmpstr, const char* d_name, FILE *ip )
+add_mibfile(const char* tmpstr, const char* d_name)
 {
     FILE           *fp;
     char            token[MAXTOKEN], token2[MAXTOKEN];
@@ -4867,8 +4867,6 @@ add_mibfile(const char* tmpstr, const char* d_name, FILE *ip )
      */
     if (get_token(fp, token2, MAXTOKEN) == DEFINITIONS) {
         new_module(token, tmpstr);
-        if (ip)
-            fprintf(ip, "%s %s\n", token, d_name);
         fclose(fp);
         return 0;
     } else {
@@ -4877,71 +4875,19 @@ add_mibfile(const char* tmpstr, const char* d_name, FILE *ip )
     }
 }
 
-/* For Win32 platforms, the directory does not maintain a last modification
- * date that we can compare with the modification date of the .index file.
- * Therefore there is no way to know whether any .index file is valid.
- * This is the reason for the #if !(defined(WIN32) || defined(cygwin))
- * in the add_mibdir function
- */
 int
 add_mibdir(const char *dirname)
 {
-    FILE           *ip;
     DIR            *dir, *dir2;
     const char     *oldFile = File;
     struct dirent  *file;
     char            tmpstr[300];
     int             count = 0;
     int             fname_len = 0;
-#if !(defined(WIN32) || defined(cygwin))
-    char           *token;
-    char space;
-    char newline;
-    struct stat     dir_stat, idx_stat;
-    char            tmpstr1[300];
-#endif
 
     DEBUGMSGTL(("parse-mibs", "Scanning directory %s\n", dirname));
-#if !(defined(WIN32) || defined(cygwin))
-    token = netsnmp_mibindex_lookup( dirname );
-    if (token && stat(token, &idx_stat) == 0 && stat(dirname, &dir_stat) == 0) {
-        if (dir_stat.st_mtime < idx_stat.st_mtime) {
-            DEBUGMSGTL(("parse-mibs", "The index is good\n"));
-            if ((ip = fopen(token, "r")) != NULL) {
-                fgets(tmpstr, sizeof(tmpstr), ip); /* Skip dir line */
-                while (fscanf(ip, "%127s%c%299s%c", token, &space, tmpstr,
-		    &newline) == 4) {
-
-		    /*
-		     * If an overflow of the token or tmpstr buffers has been
-		     * found log a message and break out of the while loop,
-		     * thus the rest of the file tokens will be ignored.
-		     */
-		    if (space != ' ' || newline != '\n') {
-			snmp_log(LOG_ERR,
-			    "add_mibdir: strings scanned in from %s/%s " \
-			    "are too large.  count = %d\n ", dirname,
-			    ".index", count);
-			    break;
-		    }
-		   
-		    snprintf(tmpstr1, sizeof(tmpstr1), "%s/%s", dirname, tmpstr);
-                    tmpstr1[ sizeof(tmpstr1)-1 ] = 0;
-                    new_module(token, tmpstr1);
-                    count++;
-                }
-                fclose(ip);
-                return count;
-            } else
-                DEBUGMSGTL(("parse-mibs", "Can't read index\n"));
-        } else
-            DEBUGMSGTL(("parse-mibs", "Index outdated\n"));
-    } else
-        DEBUGMSGTL(("parse-mibs", "No index\n"));
-#endif
 
     if ((dir = opendir(dirname))) {
-        ip = netsnmp_mibindex_new( dirname );
         while ((file = readdir(dir))) {
             /*
              * Only parse file names that don't begin with a '.' 
@@ -4962,7 +4908,7 @@ add_mibdir(const char *dirname)
                      */
                     closedir(dir2);
                 } else {
-                    if ( !add_mibfile( tmpstr, file->d_name, ip ))
+                    if ( !add_mibfile( tmpstr, file->d_name ))
                         count++;
                 }
               }
@@ -4970,8 +4916,6 @@ add_mibdir(const char *dirname)
         }
         File = oldFile;
         closedir(dir);
-        if (ip)
-            fclose(ip);
         return (count);
     }
     else
