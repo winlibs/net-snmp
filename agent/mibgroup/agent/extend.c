@@ -16,6 +16,12 @@
 #define SHELLCOMMAND 3
 #endif
 
+/*  This mib is potentially dangerous to turn on by default, since it
+ *  allows arbitrary commands to be set by anyone with SNMP WRITE
+ *  access to the MIB table.  If all of your users are "root" level
+ *  users, then it may be safe to turn on. */
+#define ENABLE_EXTEND_WRITE_ACCESS 0
+
 netsnmp_feature_require(extract_table_row_data)
 netsnmp_feature_require(table_data_delete_table)
 #ifndef NETSNMP_NO_WRITE_SUPPORT
@@ -723,7 +729,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
          *
          **********/
 
-#ifndef NETSNMP_NO_WRITE_SUPPORT
+#if !defined(NETSNMP_NO_WRITE_SUPPORT) && ENABLE_EXTEND_WRITE_ACCESS
         case MODE_SET_RESERVE1:
             /*
              * Validate the new assignments
@@ -1049,7 +1055,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
                 }
             }
             break;
-#endif /* !NETSNMP_NO_WRITE_SUPPORT */ 
+#endif /* !NETSNMP_NO_WRITE_SUPPORT and ENABLE_EXTEND_WRITE_ACCESS */
 
         default:
             netsnmp_set_request_error(reqinfo, request, SNMP_ERR_GENERR);
@@ -1057,7 +1063,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
         }
     }
 
-#ifndef NETSNMP_NO_WRITE_SUPPORT
+#if !defined(NETSNMP_NO_WRITE_SUPPORT) && ENABLE_EXTEND_WRITE_ACCESS
     /*
      * If we're marking a given row as active,
      *  then we need to check that it's ready.
@@ -1082,7 +1088,7 @@ handle_nsExtendConfigTable(netsnmp_mib_handler          *handler,
             }
         }
     }
-#endif /* !NETSNMP_NO_WRITE_SUPPORT */
+#endif /* !NETSNMP_NO_WRITE_SUPPORT && ENABLE_EXTEND_WRITE_ACCESS */
     
     return SNMP_ERR_NOERROR;
 }
@@ -1571,7 +1577,7 @@ fixExec2Error(int action,
     idx = name[name_len-1] -1;
     exten = &compatability_entries[ idx ];
 
-#ifndef NETSNMP_NO_WRITE_SUPPORT
+#if !defined(NETSNMP_NO_WRITE_SUPPORT) && ENABLE_EXTEND_WRITE_ACCESS
     switch (action) {
     case MODE_SET_RESERVE1:
         if (var_val_type != ASN_INTEGER) {
@@ -1592,7 +1598,7 @@ fixExec2Error(int action,
     case MODE_SET_COMMIT:
         netsnmp_cache_check_and_reload( exten->efix_entry->cache );
     }
-#endif /* !NETSNMP_NO_WRITE_SUPPORT */
+#endif /* !NETSNMP_NO_WRITE_SUPPORT && ENABLE_EXTEND_WRITE_ACCESS */
     return SNMP_ERR_NOERROR;
 }
 #endif /* USING_UCD_SNMP_EXTENSIBLE_MODULE */
