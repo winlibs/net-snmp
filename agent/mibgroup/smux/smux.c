@@ -629,7 +629,11 @@ smux_accept(int sd)
 {
     u_char          data[SMUXMAXPKTSIZE], *ptr, type;
     struct sockaddr_in in_socket;
+#ifdef WIN32
+    DWORD           tv = 5000;
+#else
     struct timeval  tv;
+#endif
     int             fail, fd;
     socklen_t       alen;
     int             length;
@@ -639,8 +643,10 @@ smux_accept(int sd)
     /*
      * this may be too high 
      */
+#ifndef WIN32
     tv.tv_sec = 5;
     tv.tv_usec = 0;
+#endif
 
     /*
      * connection request 
@@ -662,6 +668,27 @@ smux_accept(int sd)
             return -1;
         }
 
+#ifdef SO_RCVTIMEO
+        /*
+         * Bound the unauthenticated OpenPDU read.  This timeout must be
+         * installed before recvfrom() so an idle peer cannot block the
+         * single-threaded agent indefinitely.
+         */
+        if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv,
+                       sizeof(tv)) < 0) {
+            DEBUGMSGTL(("smux",
+                        "[smux_accept] setsockopt(SO_RCVTIMEO) failed fd %d\n",
+                        fd));
+            snmp_log_perror("smux_accept: setsockopt SO_RCVTIMEO");
+            close(fd);
+            return -1;
+        }
+#else
+        /* Reject the peer if this platform cannot bound the blocking read. */
+        close(fd);
+        return -1;
+#endif
+
         /*
          * now block for an OpenPDU 
          */
@@ -669,7 +696,7 @@ smux_accept(int sd)
         {
            length = recvfrom(fd, (char *) data, SMUXMAXPKTSIZE, 0, NULL, NULL);
         }
-        while((length == -1) && ((errno == EINTR) || (errno == EAGAIN)));
+        while((length == -1) && (errno == EINTR));
 
         if (length <= 0) {
             DEBUGMSGTL(("smux",
@@ -709,15 +736,6 @@ smux_accept(int sd)
         /*
          * he's OK 
          */
-#ifdef SO_RCVTIMEO
-        if (setsockopt
-            (fd, SOL_SOCKET, SO_RCVTIMEO, (void *) &tv, sizeof(tv)) < 0) {
-            DEBUGMSGTL(("smux",
-                        "[smux_accept] setsockopt(SO_RCVTIMEO) failed fd %d\n",
-                        fd));
-            snmp_log_perror("smux_accept: setsockopt SO_RCVTIMEO");
-        }
-#endif
         npeers++;
         DEBUGMSGTL(("smux", "[smux_accept] fd %d\n", fd));
 
